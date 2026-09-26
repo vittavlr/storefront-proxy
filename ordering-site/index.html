@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sri Amman Mandi</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F7F6; --card:#FFFFFF; --ink:#16211C; --soft:#66766C; --line:#DDE4DF; --line2:#EDF1EE;
+  --accent:#1F5FA8; --ok:#2C6E49; --warn:#B4541B; --flag:#B02A37; --r:12px;
+  --sh:0 1px 2px rgba(22,33,28,.06), 0 8px 24px rgba(22,33,28,.05);
+  --ease:cubic-bezier(.2,.7,.2,1);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:Archivo,Inter,sans-serif;letter-spacing:-.018em;margin:0;font-weight:600}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);font-weight:700;line-height:1.08}
+h2{font-size:1.3rem} h3{font-size:1rem}
+p{margin:.35rem 0}
+button{font:inherit;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
+
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(60vmax 60vmax at 8% -6%, rgba(180,101,27,.10), transparent 60%),
+    radial-gradient(55vmax 55vmax at 100% 10%, rgba(31,95,168,.09), transparent 60%),
+    radial-gradient(50vmax 50vmax at 20% 100%, rgba(44,110,73,.08), transparent 60%),
+    repeating-linear-gradient(115deg, rgba(22,33,28,.025) 0 2px, transparent 2px 34px),
+    var(--bg);
+}
+
+/* loader */
+#loader{position:fixed;inset:0;z-index:100;background:#000;transition:opacity .5s var(--ease),visibility .5s var(--ease)}
+#loader.gone{opacity:0;visibility:hidden;pointer-events:none}
+#loaderVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#loader #skipLoad{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-color:rgba(255,255,255,.4);color:#fff}
+
+/* header + nav */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:rgba(245,247,246,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top-in{max-width:960px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px}
+.brand{font-family:Archivo;font-weight:700;font-size:.98rem;line-height:1.15;background:none;border:0;text-align:left;padding:0}
+.brand small{display:block;font-family:Inter;font-weight:400;font-size:.72rem;color:var(--soft)}
+nav{margin-left:auto;display:flex;gap:2px;background:var(--line2);padding:3px;border-radius:999px}
+nav button{background:none;border:0;color:var(--soft);padding:6px 12px;border-radius:999px;font-size:.84rem;font-weight:500;transition:color .18s var(--ease),background .18s var(--ease)}
+nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+
+/* full-page horizontal slider */
+.slides-outer{position:relative;overflow:hidden;height:calc(100dvh - var(--headerH,54px) - env(safe-area-inset-top,0px))}
+.slides-track{display:flex;height:100%;transition:transform .55s var(--ease)}
+.slide{flex:0 0 100vw;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.slide .wrap{max-width:960px;margin:0 auto;padding:20px 16px 80px}
+.pagedots{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:25;display:flex;flex-direction:column;gap:7px}
+.pagedots button{width:7px;height:7px;border-radius:50%;background:var(--line);border:1px solid var(--card);padding:0;transition:background .2s var(--ease),height .2s var(--ease)}
+.pagedots button[aria-current="true"]{background:var(--ink);height:20px;border-radius:4px}
+@media(max-width:680px){.pagedots{display:none}}
+
+.fade{animation:fade .3s var(--ease) both}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* landing sections */
+.landing-hero{position:relative;overflow:hidden;border-radius:16px;padding:34px 24px;margin-top:4px;
+  background:linear-gradient(135deg,#EFF6EE 0%,#F7F6EC 45%,#EAF1F8 100%);border:1px solid var(--line)}
+.landing-hero .k{display:inline-block;font-size:.76rem;color:var(--ok);background:#E4F3E9;border:1px solid #C7E5D2;padding:3px 10px;border-radius:999px;margin-bottom:12px}
+.landing-hero h1{max-width:20ch}
+.landing-hero p{max-width:52ch;color:var(--soft);font-size:1rem;margin-top:10px}
+.landing-hero .grain{position:absolute;right:-30px;bottom:-40px;font-size:8rem;opacity:.09;transform:rotate(-8deg)}
+.landing-cta{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:9px;padding:10px 16px;font-weight:600;font-size:.9rem;transition:transform .16s var(--ease)}
+.btn:hover{transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 11px;font-size:.82rem;font-weight:500}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-top:22px}
+.stat b{display:block;font-family:Archivo;font-size:1.4rem;font-weight:700}
+.stat span{font-size:.78rem;color:var(--soft)}
+
+.section{margin-top:38px}
+.section .kicker{font-size:.78rem;color:var(--ok);font-weight:600;margin-bottom:4px}
+.section h2{font-size:1.4rem;max-width:26ch}
+.section .sub{color:var(--soft);max-width:56ch;margin-top:6px}
+
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:18px}
+.spec{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
+.spec .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:8px}
+.spec p{font-size:.86rem;color:var(--soft);margin:2px 0 0}
+
+.compare{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.compare table{width:100%;border-collapse:collapse;font-size:.88rem}
+.compare th,.compare td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line2)}
+.compare tr:last-child td{border-bottom:0}
+.compare thead th{background:var(--line2);font-family:Archivo;font-weight:600;font-size:.8rem;color:var(--soft)}
+.compare th.us,.compare td.us{background:#EEF6F0;color:var(--ok);font-weight:600}
+.compare .no{color:var(--soft)}
+
+.quote-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
+.quote{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
+.quote .who{margin-top:8px;font-size:.8rem;color:var(--soft);font-weight:600}
+.stars{color:#D9A441;font-size:.85rem}
+
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:20px}
+.info div{background:var(--card);padding:12px 14px;font-size:.88rem}
+.info span{display:block;font-size:.74rem;color:var(--soft);margin-bottom:2px}
+
+.bandcta{margin-top:38px;border-radius:16px;padding:26px;text-align:center;background:linear-gradient(120deg,#16211C,#243A2E);color:#fff}
+.bandcta h2{color:#fff}
+.bandcta p{color:#C9D6CE;max-width:50ch;margin:8px auto 0}
+.bandcta .btn{background:#fff;color:#16211C;margin-top:14px}
+footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-top:1px solid var(--line)}
+
+/* products page */
+.head{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.head .rule{flex:1;height:1px;background:var(--line)}
+.meta{font-size:.8rem;color:var(--soft)}
+.rows{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:18px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line2)}
+.row:last-child{border-bottom:0}
+.row .name{font-weight:500;font-size:.94rem}
+.row .rate{margin-left:auto;font-family:Archivo;font-weight:600;font-size:.9rem;white-space:nowrap}
+.stock{font-size:.76rem;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.stock.ok{background:#ECF6F0;color:var(--ok)}
+.stock.low{background:#FDF4EC;color:var(--warn)}
+.stock.out{background:#FCECEE;color:var(--flag)}
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;color:var(--soft)}
+.sk{background:linear-gradient(90deg,var(--line2) 25%,#F7FAF8 37%,var(--line2) 63%);background-size:400% 100%;animation:shine 1.3s linear infinite;border-radius:8px;height:46px;margin-bottom:8px}
+@keyframes shine{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* purchases page */
+input[type=tel],input[type=text],input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:.94rem}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,95,168,.12);outline:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
+.lookup{display:flex;gap:8px;margin-top:8px}
+.inv{border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px;background:var(--card);box-shadow:var(--sh)}
+.inv-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.code{font-family:Archivo;font-weight:600}
+.pill{font-size:.74rem;border-radius:999px;padding:2px 9px;border:1px solid var(--line);color:var(--soft)}
+.pill.st-new{background:#FDF4EC;border-color:#E9C9AC;color:var(--warn)}
+.pill.st-seen{background:#EEF4FB;border-color:#C6D9F0;color:var(--accent)}
+.pill.st-confirmed{background:#E9F1F8;border-color:#B8D2EE;color:#164C87}
+.pill.st-done{background:#ECF6F0;border-color:#BEE0CC;color:var(--ok)}
+.pill.st-cancelled{background:#FCECEE;border-color:#F0C2C7;color:var(--flag)}
+a.link{color:var(--accent);text-decoration:none;font-weight:600;font-size:.88rem}
+.hide{display:none!important}
+.pwrap{position:relative}
+.pwrap input{padding-right:42px}
+.pwrap .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;background:transparent;font-size:1rem;line-height:1;color:var(--soft);border-radius:6px}
+.pwrap .eye:hover{background:var(--line2)}
+
+/* request cart */
+.step{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.step button{width:28px;height:28px;border:0;background:var(--card);color:var(--ink);font-size:1rem}
+.step button:disabled{color:#c3ccc7}
+.step output{min-width:26px;text-align:center;font-weight:600;font-size:.85rem}
+.tray{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));transform:translateY(120%);transition:transform .3s var(--ease)}
+.tray.on{transform:none}
+.tray-in{max-width:960px;margin:0 auto;display:flex;gap:10px;align-items:center}
+label{display:block;margin:12px 0 4px;font-size:.8rem;color:var(--soft)}
+textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:.94rem;min-height:70px}
+.lines{list-style:none;margin:8px 0 0;padding:0}
+.lines li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line2);font-size:.88rem}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* admin */
+.badge{display:inline-flex;min-width:16px;height:16px;padding:0 4px;margin-left:5px;border-radius:8px;background:var(--flag);color:#fff;font-size:.68rem;align-items:center;justify-content:center}
+.admin-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh);margin-bottom:22px}
+.admin-card h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin-bottom:14px}
+.field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 16px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.78rem;color:var(--soft);margin:0}
+.field input,.field textarea{padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font:inherit;font-size:.94rem}
+.field input:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,95,168,.12);outline:none}
+.field.full{grid-column:1/-1}
+.reqcard{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;background:var(--card);box-shadow:var(--sh)}
+.reqcard.new{border-left:3px solid var(--warn)}
+.reqcard .inv-top{flex-wrap:wrap;row-gap:6px}
+.reqcard .lines{margin:8px 0}
+.reqcard .acts{margin-top:10px}
+</style>
+</head>
+<body>
+<div id="loader">
+  <video id="loaderVideo" autoplay playsinline src="sriamman.mp4"></video>
+  <button class="btn ghost small" id="unmuteLoad" style="position:absolute;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-color:rgba(255,255,255,.4);color:#fff">🔇 Tap for sound</button>
+  <button class="btn ghost small" id="skipLoad">Skip</button>
+</div>
+
+<header class="top">
+  <div class="top-in">
+    <button class="brand" data-tab="home" id="brand"></button>
+    <nav id="nav"></nav>
+  </div>
+</header>
+<div class="slides-outer" id="slidesOuter">
+  <div class="slides-track" id="slidesTrack"></div>
+</div>
+<div class="pagedots" id="pageDots"></div>
+
+<div class="tray" id="tray"><div class="tray-in">
+  <span class="meta" id="traysum"></span>
+  <button class="btn ghost small" id="trayclear">Clear</button>
+  <button class="btn" id="traygo">Review request</button>
+</div></div>
+
+<script>
+/* ====== CONFIGURE ====== */
+const PROXY_BASE_RAW = "https://storefront-proxy.onrender.com/"; // your deployed proxy (see ../proxy)
+const PROXY_BASE = PROXY_BASE_RAW.replace(/\/+$/,""); // strip trailing slash so URLs never end up with "//"
+const DEFAULT_SHOP = {
+  name: "Sri Amman Sugar and Rice Mandi",
+  tagline: "Sugar and Rice at Best Price!",
+  phone: "+91 97516 55590",
+  hours: "Mon–Sat 8am–8pm · Sun 8am–1pm",
+  address: "15, Arni Road, Thuthipet, Vellore. Tamilnadu - 632002."
+};
+/* ======================== */
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(path, opts){ const res = await fetch(`${PROXY_BASE}${path}`, opts); if(!res.ok) throw new Error("failed"); return res.json(); }
+function adminHeaders(){ return { "Content-Type":"application/json", "x-admin-password": S.adminPass || "" }; }
+function load(k,f){ try{ return JSON.parse(localStorage.getItem(k)) ?? f; }catch(e){ return f; } }
+function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+const S = {
+  view:"home", products:null, productsError:false, SHOP:DEFAULT_SHOP,
+  cart:{}, showRequestForm:false, isAdmin:false, adminPass:load("adminPass",null), adminError:false,
+  requests:null, unseen:0, contentExpanded:false
+};
+
+function stockBadge(stock){
+  if(stock<=0) return `<span class="stock out">Out of stock</span>`;
+  if(stock<=5) return `<span class="stock low">${stock} left</span>`;
+  return `<span class="stock ok">${stock} in stock</span>`;
+}
+function skeleton(n){ return Array.from({length:n},()=>'<div class="sk"></div>').join(""); }
+function cartCount(){ return Object.values(S.cart).reduce((a,b)=>a+b,0); }
+
+/* ---------- slides ---------- */
+function slideOrder(){ const o=["home","products","purchases"]; if(S.isAdmin) o.push("admin"); else o.push("login"); return o; }
+function nav(){
+  const tabs=[{k:"home",label:"Home"},{k:"products",label:"Products"},{k:"purchases",label:"My purchases"}];
+  if(S.isAdmin) tabs.push({k:"admin",label:"Admin"+(S.unseen?`<span class="badge">${S.unseen}</span>`:"")});
+  document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.k}" aria-current="${S.view===t.k}">${t.label}</button>`).join("");
+  document.getElementById("brand").innerHTML = `${esc(S.SHOP.name)}<small>${esc(S.SHOP.tagline)}</small>`;
+}
+const VIEWS = { home:viewHome, products:viewProducts, purchases:viewPurchases, admin:viewAdmin, login:viewLogin };
+function render(){
+  nav();
+  const order = slideOrder();
+  const track = document.getElementById("slidesTrack");
+  if(track.dataset.shape !== order.join(",")){
+    track.dataset.shape = order.join(",");
+    track.innerHTML = order.map(k=>`<div class="slide" data-slide="${k}"><div class="wrap"></div></div>`).join("");
+  }
+  order.forEach(k=>{ track.querySelector(`[data-slide="${k}"] .wrap`).innerHTML = `<div class="fade">${VIEWS[k]()}</div>`; });
+  const headerH = document.querySelector("header.top").offsetHeight;
+  document.documentElement.style.setProperty("--headerH", headerH+"px");
+  const i = order.indexOf(S.view);
+  track.style.transform = `translateX(-${Math.max(0,i)*100}vw)`;
+  document.getElementById("pageDots").innerHTML = order.map((k,n)=>`<button data-godot="${k}" aria-current="${n===i}"></button>`).join("");
+  if(S.view==="products" && S.products===null) loadProducts();
+  if(S.view==="admin" && S.isAdmin && S.requests===null) loadRequests();
+  const showTray = cartCount()>0 && S.view==="products" && !S.showRequestForm;
+  document.getElementById("tray").classList.toggle("on", showTray);
+  if(showTray) document.getElementById("traysum").textContent = `${cartCount()} item${cartCount()===1?"":"s"} selected`;
+}
+
+function viewHome(){
+  const s = S.SHOP;
+  const specs = [
+    {ic:"🌾",bg:"#F3E7D8",title:"Fresh, not warehoused",desc:"Stock moves regularly — what you see listed is what's actually on the shelf today."},
+    {ic:"⚖️",bg:"#E7EEF6",title:"Weight you can trust",desc:"Every order is checked before it leaves — no shortfall, no arguments at your door."},
+    {ic:"🚚",bg:"#E9F1EC",title:"Delivered, not carried",desc:"Ask in-store about delivery for your area."},
+    {ic:"📞",bg:"#F6E9EC",title:"A person confirms every order",desc:"Send a request here — a real person confirms quantity, rate and timing."}
+  ];
+  const compareRows = [
+    ["Stock visibility","Shown live, right here","Usually unknown until you visit"],
+    ["Rate transparency","Listed upfront","Often only known at the counter"],
+    ["Order history","View your own past bills anytime","No visibility once you've paid"]
+  ];
+  return `
+  <section class="landing-hero">
+    <span class="grain">🌾</span>
+    <span class="k">Trusted by regulars in the neighbourhood</span>
+    <h1>Everyday provisions, priced fair.</h1>
+    <p>${esc(s.tagline)}. Browse what's in stock, send a request, and look up your past orders any time using your phone number.</p>
+    <div class="landing-cta">
+      <button class="btn" data-tab="products">See what's in stock</button>
+      <button class="btn ghost" data-tab="purchases">Find my orders</button>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><b id="statCount">–</b><span>products listed</span></div>
+      <div class="stat"><b>Live</b><span>stock, not estimates</span></div>
+      <div class="stat"><b>0</b><span>login needed to browse</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="kicker">Why people shop here</div>
+    <h2>The details that don't show up on a price tag</h2>
+    <div class="spec-grid">${specs.map(x=>`<div class="spec"><div class="ic" style="background:${x.bg}">${x.ic}</div><h3>${esc(x.title)}</h3><p>${esc(x.desc)}</p></div>`).join("")}</div>
+  </section>
+
+  <section class="section">
+    <div class="kicker">Us vs. the usual shop</div>
+    <h2>How we compare</h2>
+    <div class="compare"><table>
+      <thead><tr><th></th><th class="us">Here</th><th>Typical local shop</th></tr></thead>
+      <tbody>${compareRows.map(r=>`<tr><td>${esc(r[0])}</td><td class="us">${esc(r[1])}</td><td class="no">${esc(r[2])}</td></tr>`).join("")}</tbody>
+    </table></div>
+  </section>
+
+  <section class="section">
+    <div class="kicker">From regulars</div>
+    <h2>What customers say</h2>
+    <div class="quote-row">
+      <div class="quote"><div class="stars">★★★★★</div><p>Always know what's in stock before I even leave the house.</p><div class="who">— Regular customer</div></div>
+      <div class="quote"><div class="stars">★★★★★</div><p>Being able to pull up my old bills by phone number is genuinely useful.</p><div class="who">— Mess owner</div></div>
+      <div class="quote"><div class="stars">★★★★☆</div><p>Rates are steady, no surprises at the counter.</p><div class="who">— Tea stall owner</div></div>
+    </div>
+    <div class="info">
+      <div><span>Call</span>${esc(s.phone)}</div>
+      <div><span>Hours</span>${esc(s.hours)}</div>
+      <div><span>Address</span>${esc(s.address)}</div>
+    </div>
+  </section>
+
+  <div class="bandcta">
+    <h2>Ready to take a look?</h2>
+    <p>See today's stock and pricing, send a request, or pull up your own order history.</p>
+    <button class="btn" data-tab="products">Browse products</button>
+  </div>
+  <footer>Bills are generated and managed separately in our billing system — this page shows live stock, lets you request items, and shows your own order history.
+    ${S.isAdmin ? "" : '<div style="margin-top:10px"><button class="btn ghost small" data-tab="login" style="font-size:.76rem;opacity:.75">Admin login</button></div>'}
+  </footer>`;
+}
+
+function viewProducts(){
+  if(S.showRequestForm) return viewRequestForm();
+  if(S.productsError) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">Couldn't load products right now — please try again shortly.</div>`;
+  if(!S.products) return `<div class="head"><h2>Products</h2><div class="rule"></div></div>${skeleton(4)}`;
+  if(!S.products.length) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">No products listed yet.</div>`;
+  const byCat = {};
+  S.products.forEach(p=>(byCat[p.category]=byCat[p.category]||[]).push(p));
+  return `<div class="head"><h2>Products</h2><div class="rule"></div><span class="meta">live stock · tap + to request</span></div>` +
+    Object.keys(byCat).sort().map(cat=>`
+      <h3 style="margin:14px 0 6px">${esc(cat)}</h3>
+      <div class="rows">${byCat[cat].map(p=>{
+        const q = S.cart[p.id]||0;
+        return `<div class="row">
+          <span class="name">${esc(p.name)} <span class="meta">₹${p.price.toFixed(2)}/${esc(p.unit)}</span></span>
+          ${stockBadge(p.stock)}
+          <span class="step">
+            <button data-dec="${esc(p.id)}" ${q?"":"disabled"}>−</button>
+            <output>${q}</output>
+            <button data-inc="${esc(p.id)}" ${p.stock<=0?"disabled":""}>+</button>
+          </span>
+        </div>`;}).join("")}</div>`).join("");
+}
+async function loadProducts(){
+  try{
+    S.products = await api("/products");
+    const el = document.getElementById("statCount"); if(el) el.textContent = S.products.length;
+  }catch(e){ S.productsError = true; }
+  render();
+}
+
+function cartLines(){
+  return Object.keys(S.cart).filter(id=>S.cart[id]>0).map(id=>{
+    const p = (S.products||[]).find(x=>x.id===id) || {};
+    return { name:p.name||"Item", unit:p.unit||"", qty:S.cart[id] };
+  });
+}
+function viewPurchases(){
+  return `<div class="head"><h2>My orders</h2><div class="rule"></div></div>
+    <div class="card">
+      <label class="meta">Enter your phone number to see your request status and past bills</label>
+      <div class="lookup">
+        <input id="phoneInput" type="tel" placeholder="10-digit phone number">
+        <button class="btn" id="lookupBtn">Look up</button>
+      </div>
+    </div>
+    <div id="requestResults" style="margin-top:16px"></div>
+    <div id="invoiceResults" style="margin-top:16px"></div>`;
+}
+const REQ_STATUS_LABEL = { new:"Sent", seen:"Seen", confirmed:"Confirmed", done:"Completed", cancelled:"Cancelled" };
+async function runLookup(phone){
+  const reqBox = document.getElementById("requestResults");
+  const invBox = document.getElementById("invoiceResults");
+  reqBox.innerHTML = `<div class="empty">Looking up your requests…</div>`;
+  invBox.innerHTML = `<div class="empty">Looking up your bills…</div>`;
+
+  try{
+    const myReqs = await api(`/my-requests?phone=${encodeURIComponent(phone)}`);
+    if(!myReqs.length){ reqBox.innerHTML = ""; }
+    else {
+      reqBox.innerHTML = `<h3 style="margin-bottom:8px">Your requests</h3>` + myReqs.map(r => `
+        <div class="inv">
+          <div class="inv-top">
+            <span class="code">#${esc(r.code)}</span>
+            <span class="pill st-${esc(r.status)}">${esc(REQ_STATUS_LABEL[r.status] || r.status)}</span>
+            <span class="meta">${new Date(r.createdAt).toLocaleDateString()}</span>
+          </div>
+          <ul class="lines">${r.items.map(i=>`<li><span>${esc(i.name)}</span><span>${i.qty} ${esc(i.unit)}</span></li>`).join("")}</ul>
+        </div>`).join("");
+    }
+  }catch(e){ reqBox.innerHTML = `<div class="empty">Couldn't look up your requests right now.</div>`; }
+
+  try{
+    const invoices = await api(`/invoices?phone=${encodeURIComponent(phone)}`);
+    if(!invoices.length){ invBox.innerHTML = ""; }
+    else {
+      invBox.innerHTML = `<h3 style="margin-bottom:8px">Your bills</h3>` + invoices.map(inv => `
+        <div class="inv">
+          <div class="inv-top">
+            <span class="code">#${esc(inv.invoiceNumber)}</span>
+            <span class="pill">${esc(inv.status)}</span>
+            <span class="meta">${new Date(inv.date).toLocaleDateString()}</span>
+          </div>
+          <div class="inv-top" style="margin-top:8px">
+            <span class="meta">Total ₹${inv.total.toFixed(2)} · Balance due ₹${inv.balanceDue.toFixed(2)}</span>
+            ${inv.shareUrl ? `<a class="link" target="_blank" rel="noopener" href="${esc(inv.shareUrl)}">View bill →</a>` : `<span class="meta">Bill link unavailable</span>`}
+          </div>
+        </div>`).join("");
+    }
+  }catch(e){ invBox.innerHTML = `<div class="empty">Couldn't look up your bills right now.</div>`; }
+
+  if(!reqBox.innerHTML && !invBox.innerHTML){
+    reqBox.innerHTML = `<div class="empty">No requests or bills found for that number yet.</div>`;
+  }
+}
+
+/* ---------- request form (a modal-ish inline panel over Products) ---------- */
+function viewRequestForm(){
+  const lines = cartLines();
+  const c = load("contact",{});
+  return `<div class="head"><h2>Send request</h2><div class="rule"></div></div>
+    <div class="card">
+      <ul class="lines">${lines.map(l=>`<li><span>${esc(l.name)}</span><span>${l.qty} ${esc(l.unit)}</span></li>`).join("")}</ul>
+    </div>
+    <form class="card" id="reqform" style="margin-top:10px">
+      <label for="rf-name">Your name</label><input id="rf-name" type="text" required value="${esc(c.name||"")}">
+      <label for="rf-phone">Phone number</label><input id="rf-phone" type="tel" required value="${esc(c.phone||"")}">
+      <label for="rf-address">Delivery address (optional)</label><textarea id="rf-address">${esc(c.address||"")}</textarea>
+      <label for="rf-notes">Anything else</label><textarea id="rf-notes" placeholder="Preferred time, etc."></textarea>
+      <div class="acts"><button class="btn" type="submit">Send request</button><button class="btn ghost" type="button" id="backToProducts">Back</button></div>
+    </form>`;
+}
+
+/* ---------- admin login + dashboard ---------- */
+function viewLogin(){
+  return `<div class="head"><h2>Admin login</h2><div class="rule"></div></div>
+    <form class="card" id="loginform" style="max-width:360px">
+      <label for="lg-p">Admin password</label>
+      <div class="pwrap">
+        <input id="lg-p" type="password" required autocomplete="current-password">
+        <button type="button" class="eye" id="lgEye" aria-label="Show password">👁</button>
+      </div>
+      <p class="meta hide" id="loginerr" style="color:var(--flag)">Wrong password.</p>
+      <div class="acts"><button class="btn" type="submit">Sign in</button><button class="btn ghost" type="button" data-tab="home">Cancel</button></div>
+    </form>`;
+}
+function viewAdmin(){
+  const s = S.SHOP;
+  const reqs = S.requests || [];
+  const open = reqs.filter(r=>r.status!=="done" && r.status!=="cancelled");
+  const closed = reqs.filter(r=>r.status==="done" || r.status==="cancelled");
+  S.unseen = 0;
+  const fields = [["name","Shop name"],["tagline","Tagline"],["phone","Phone"],["hours","Hours"]];
+  return `<div class="head"><h2>Admin</h2><div class="rule"></div>
+    <a class="btn ghost small" style="text-decoration:none" href="https://sri-amman-billing.vercel.app/login">Open billing site</a>
+    <button class="btn ghost small" id="adminLogout">Log out</button></div>
+
+    <div class="admin-card">
+      <div class="head" style="margin:0"><h3 style="margin:0;text-transform:none;letter-spacing:0;font-size:1rem;color:var(--ink)">Site content</h3><div class="rule"></div>
+        <button class="btn ghost small" id="toggleContent">${S.contentExpanded ? "Collapse" : "Expand"}</button></div>
+      <form id="contentform" class="${S.contentExpanded ? "" : "hide"}" style="margin-top:14px">
+        <div class="field-grid">
+          ${fields.map(([k,l])=>`<div class="field"><label for="ct-${k}">${l}</label><input id="ct-${k}" data-field="${k}" type="text" value="${esc(s[k]||"")}"></div>`).join("")}
+          <div class="field full"><label for="ct-address">Address</label><textarea id="ct-address" data-field="address" rows="2">${esc(s.address||"")}</textarea></div>
+        </div>
+        <div class="acts"><button class="btn" type="submit">Save changes</button><span class="meta" id="saveOk"></span></div>
+      </form>
+    </div>
+
+    <div class="head"><h2>Requests</h2><div class="rule"></div><span class="meta">${open.length} open</span></div>
+    ${S.requests===null ? skeleton(2) : open.length ? open.map(reqCard).join("") : `<div class="empty">No open requests.</div>`}
+    ${closed.length ? `<h3 style="margin:18px 0 8px;font-size:.85rem;color:var(--soft)">Closed</h3>${closed.map(reqCard).join("")}` : ""}`;
+}
+function reqCard(r){
+  return `<div class="reqcard ${r.status==="new"?"new":""}">
+    <div class="inv-top"><span class="code">#${esc(r.code)}</span><span class="pill st-${esc(r.status)}">${esc(REQ_STATUS_LABEL[r.status] || r.status)}</span><span class="meta">${new Date(r.createdAt).toLocaleString()}</span></div>
+    <p style="margin:8px 0 4px"><b>${esc(r.name)}</b> · ${esc(r.phone)}${r.address?`<br><span class="meta">${esc(r.address)}</span>`:""}</p>
+    ${r.notes?`<p class="meta">Note: ${esc(r.notes)}</p>`:""}
+    <ul class="lines">${r.items.map(i=>`<li><span>${esc(i.name)}</span><span>${i.qty} ${esc(i.unit)}</span></li>`).join("")}</ul>
+    <div class="acts">
+      ${["seen","confirmed","done","cancelled"].filter(s=>s!==r.status).map(s=>`<button class="btn ghost small" data-setreq="${esc(r.id)}" data-status="${s}">${s}</button>`).join("")}
+      <a class="btn ghost small" style="text-decoration:none" href="tel:${esc(r.phone)}">Call</a>
+      <button class="btn ghost small" data-delreq="${esc(r.id)}" style="color:var(--flag);border-color:var(--flag)">Delete</button>
+    </div>
+  </div>`;
+}
+async function loadRequests(){
+  try{ S.requests = await api("/requests", { headers: adminHeaders() }); }
+  catch(e){ S.requests = []; }
+  render();
+}
+async function loadContent(){
+  try{ S.SHOP = Object.assign({}, DEFAULT_SHOP, await api("/content")); }catch(e){}
+  render();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", e=>{
+  const tab = e.target.closest("[data-tab]"); if(tab){ S.view = (tab.dataset.tab==="login" && S.isAdmin) ? "admin" : tab.dataset.tab; render(); return; }
+  const dot = e.target.closest("[data-godot]"); if(dot){ S.view=dot.dataset.godot; render(); return; }
+
+  const inc = e.target.closest("[data-inc]"); if(inc){ const id=inc.dataset.inc; S.cart[id]=(S.cart[id]||0)+1; render(); return; }
+  const dec = e.target.closest("[data-dec]"); if(dec){ const id=dec.dataset.dec; S.cart[id]=Math.max(0,(S.cart[id]||0)-1); if(!S.cart[id]) delete S.cart[id]; render(); return; }
+  if(e.target.id==="traygo"){ S.showRequestForm=true; render(); return; }
+  if(e.target.id==="trayclear"){ S.cart={}; render(); return; }
+
+  if(e.target.id==="backToProducts"){ S.showRequestForm=false; render(); return; }
+  if(e.target.id==="lookupBtn"){ runLookup(document.getElementById("phoneInput").value); return; }
+
+  const setreq = e.target.closest("[data-setreq]");
+  if(setreq){ api(`/requests/${setreq.dataset.setreq}`, { method:"PATCH", headers:adminHeaders(), body:JSON.stringify({status:setreq.dataset.status}) })
+    .then(()=>loadRequests()).catch(()=>{}); return; }
+
+  const delreq = e.target.closest("[data-delreq]");
+  if(delreq){
+    if(!confirm("Delete this request permanently? This can't be undone.")) return;
+    api(`/requests/${delreq.dataset.delreq}`, { method:"DELETE", headers:adminHeaders() })
+      .then(()=>loadRequests()).catch(()=>alert("Couldn't delete — check your admin password is still correct."));
+    return;
+  }
+
+  if(e.target.id==="toggleContent"){ S.contentExpanded = !S.contentExpanded; render(); return; }
+  const eye = e.target.closest("#lgEye"); if(eye){
+    const inp = document.getElementById("lg-p");
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    eye.textContent = show ? "🙈" : "👁";
+    eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    return;
+  }
+  if(e.target.id==="adminLogout"){ S.isAdmin=false; S.adminPass=null; save("adminPass",null); S.view="home"; render(); return; }
+});
+document.addEventListener("keydown", e=>{ if(e.target.id==="phoneInput" && e.key==="Enter") runLookup(e.target.value); });
+
+document.addEventListener("submit", async e=>{
+  if(e.target.id==="loginform"){
+    e.preventDefault();
+    const pass = document.getElementById("lg-p").value;
+    try{
+      const res = await fetch(`${PROXY_BASE}/requests`, { headers:{ "x-admin-password":pass } });
+      if(res.ok){ S.isAdmin=true; S.adminPass=pass; save("adminPass",pass); S.view="admin"; S.requests=null; render(); }
+      else document.getElementById("loginerr").classList.remove("hide");
+    }catch(err){ document.getElementById("loginerr").classList.remove("hide"); }
+    return;
+  }
+  if(e.target.id==="contentform"){
+    e.preventDefault();
+    const body = {};
+    e.target.querySelectorAll("[data-field]").forEach(inp=>body[inp.dataset.field]=inp.value);
+    try{
+      S.SHOP = await api("/content", { method:"POST", headers:adminHeaders(), body:JSON.stringify(body) });
+      render();
+      const ok = document.getElementById("saveOk"); if(ok){ ok.textContent="Saved"; setTimeout(()=>{ if(ok) ok.textContent=""; }, 2500); }
+    }
+    catch(err){ alert("Couldn't save — check your admin password is still correct."); }
+    return;
+  }
+  if(e.target.id==="reqform"){
+    e.preventDefault();
+    const name=document.getElementById("rf-name").value.trim();
+    const phone=document.getElementById("rf-phone").value.trim();
+    const address=document.getElementById("rf-address").value.trim();
+    const notes=document.getElementById("rf-notes").value.trim();
+    if(!name||!phone) return;
+    const items = cartLines();
+    try{
+      const r = await api("/requests", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,phone,address,notes,items}) });
+      save("contact",{name,phone,address});
+      S.cart={}; S.showRequestForm=false;
+      alert(`Request sent — reference #${r.code}. The shop will contact you to confirm.`);
+      render();
+    }catch(err){ alert("Couldn't send that — please try again."); }
+  }
+});
+
+// (request form is just a mode of the products slide — see S.showRequestForm)
+
+let swipeX=0;
+document.getElementById("slidesOuter").addEventListener("touchstart", e=>{ swipeX=e.touches[0].clientX; }, {passive:true});
+document.getElementById("slidesOuter").addEventListener("touchend", e=>{
+  const dx = e.changedTouches[0].clientX - swipeX; if(Math.abs(dx)<55) return;
+  const order = slideOrder(); const i = order.indexOf(S.view);
+  if(dx<0 && i<order.length-1){ S.view=order[i+1]; render(); }
+  else if(dx>0 && i>0){ S.view=order[i-1]; render(); }
+}, {passive:true});
+
+/* ---------- boot ---------- */
+render();
+function hideLoader(){ const l=document.getElementById("loader"); if(l) l.classList.add("gone"); }
+document.getElementById("skipLoad").addEventListener("click", hideLoader); // Skip always jumps straight in, regardless of video state
+const loaderVideo = document.getElementById("loaderVideo");
+const unmuteBtn = document.getElementById("unmuteLoad");
+
+// Only play the intro video on a genuinely fresh visit — not on a
+// page refresh within the same tab/session.
+let alreadyPlayed = false;
+try{ alreadyPlayed = sessionStorage.getItem("loaderPlayed") === "1"; }catch(e){}
+
+if(alreadyPlayed){
+  hideLoader();
+} else {
+  try{ sessionStorage.setItem("loaderPlayed","1"); }catch(e){} // set immediately so a mid-video refresh doesn't replay it
+  loaderVideo.addEventListener("ended", hideLoader);   // loading screen switches on its own once the video finishes
+  loaderVideo.addEventListener("error", hideLoader);   // if the video file can't load for some reason, don't get stuck
+  unmuteBtn.addEventListener("click", ()=>{ loaderVideo.muted = false; loaderVideo.play().catch(()=>{}); unmuteBtn.style.display = "none"; });
+  loaderVideo.muted = false;
+  try{
+    const p = loaderVideo.play();
+    if(p && p.then) p.then(()=>{ unmuteBtn.style.display = "none"; }).catch(()=>{
+      loaderVideo.muted = true;
+      try{ loaderVideo.play(); }catch(e){}
+    });
+  }catch(e){}
+  setTimeout(hideLoader, 20000); // safety net only — shouldn't normally fire
+}
+
+(async function(){
+  await loadContent();
+  if(S.adminPass){
+    const res = await fetch(`${PROXY_BASE}/requests`, { headers:{ "x-admin-password":S.adminPass } }).catch(()=>null);
+    if(res && res.ok) S.isAdmin = true;
+  }
+  await loadProducts();
+  render();
+})();
+</script>
+
+</body>
+</html>
