@@ -127,6 +127,8 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .map-link{display:inline-block;margin-top:4px;color:var(--accent);text-decoration:none;font-size:.84rem;font-weight:600}
 .map-link:hover{text-decoration:underline}
 .footer-bottom{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);justify-content:space-between;color:var(--soft);font-size:.78rem}
+.admin-access{font-size:.7rem;color:var(--soft);cursor:pointer;text-decoration:none}
+.admin-access:hover{text-decoration:underline;color:var(--ink)}
 
 /* products page */
 .head{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
@@ -358,7 +360,6 @@ function viewHome(){
       </div>
       <div class="footer-row address-block">
         <span>📍 ${addressHtml(s.address)}</span>
-        ${S.isAdmin ? "" : '<button class="btn ghost small" data-tab="login">Admin login</button>'}
       </div>
       <div class="map-embed">
         <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
@@ -367,6 +368,7 @@ function viewHome(){
       <a class="map-link" href="https://www.google.com/maps?q=12.860972,79.132833" target="_blank" rel="noopener">Open in Google Maps →</a>
       <div class="footer-row footer-bottom">
         <span class="footer-note">Bills are generated and managed separately in our billing system.</span>
+        ${S.isAdmin ? "" : '<span class="admin-access" data-tab="login">Admin access</span>'}
       </div>
     </div>
   </footer>`;
