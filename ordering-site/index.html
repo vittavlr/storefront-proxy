@@ -666,7 +666,11 @@ document.getElementById("slidesOuter").addEventListener("touchend", e=>{
 
 /* ---------- boot ---------- */
 render();
-function hideLoader(){ const l=document.getElementById("loader"); if(l) l.classList.add("gone"); }
+function hideLoader(){
+  const l=document.getElementById("loader"); if(l) l.classList.add("gone");
+  const v=document.getElementById("loaderVideo");
+  if(v){ try{ v.pause(); }catch(e){} }
+}
 document.getElementById("skipLoad").addEventListener("click", hideLoader); // Skip always jumps straight in, regardless of video state
 const loaderVideo = document.getElementById("loaderVideo");
 const unmuteBtn = document.getElementById("unmuteLoad");
