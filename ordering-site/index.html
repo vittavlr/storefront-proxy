@@ -115,18 +115,18 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .bandcta .btn{background:#fff;color:#16211C;margin-top:14px}
 footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-top:1px solid var(--line)}
 .site-footer{margin-top:44px;background:var(--line2);color:var(--ink);width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;border-top:1px solid var(--line)}
-.footer-inner{max-width:960px;margin:0 auto;padding:26px 22px calc(26px + env(safe-area-inset-bottom,0px))}
+.footer-inner{max-width:960px;margin:0 auto;padding:13px 22px calc(13px + env(safe-area-inset-bottom,0px))}
 .footer-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.9rem}
 .contact-line a{color:var(--ink);text-decoration:none;font-weight:500;white-space:nowrap}
 .contact-line a:hover{text-decoration:underline}
 .contact-line .dot{color:var(--soft)}
-.address-block{margin-top:12px;line-height:1.5;color:var(--soft)}
+.address-block{margin-top:6px;line-height:1.4;color:var(--soft);justify-content:space-between}
 .address-block .pin{display:inline-block;margin-left:4px;font-size:.76rem;font-weight:600;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--ink)}
-.map-embed{margin-top:14px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
-.map-embed iframe{width:100%;height:200px;border:0;display:block}
-.map-link{display:inline-block;margin-top:8px;color:var(--accent);text-decoration:none;font-size:.84rem;font-weight:600}
+.map-embed{margin-top:7px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+.map-embed iframe{width:100%;height:100px;border:0;display:block}
+.map-link{display:inline-block;margin-top:4px;color:var(--accent);text-decoration:none;font-size:.84rem;font-weight:600}
 .map-link:hover{text-decoration:underline}
-.footer-bottom{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);justify-content:space-between;color:var(--soft);font-size:.78rem}
+.footer-bottom{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);justify-content:space-between;color:var(--soft);font-size:.78rem}
 
 /* products page */
 .head{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
@@ -357,7 +357,8 @@ function viewHome(){
         <span>🕒 ${esc(s.hours)}</span>
       </div>
       <div class="footer-row address-block">
-        📍 ${addressHtml(s.address)}
+        <span>📍 ${addressHtml(s.address)}</span>
+        ${S.isAdmin ? "" : '<button class="btn ghost small" data-tab="login">Admin login</button>'}
       </div>
       <div class="map-embed">
         <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
@@ -366,16 +367,12 @@ function viewHome(){
       <a class="map-link" href="https://www.google.com/maps?q=12.860972,79.132833" target="_blank" rel="noopener">Open in Google Maps →</a>
       <div class="footer-row footer-bottom">
         <span class="footer-note">Bills are generated and managed separately in our billing system.</span>
-        ${S.isAdmin ? "" : '<button class="btn ghost small" data-tab="login">Admin login</button>'}
       </div>
     </div>
   </footer>`;
 }
 function addressHtml(addr){
-  const m = String(addr||"").match(/(\d{6})/);
-  const pin = m ? m[1] : null;
-  const rest = pin ? addr.replace(pin,"").replace(/[-–]\s*$/,"").trim() : addr;
-  return `<span>${esc(rest)}</span>` + (pin ? ` <span class="pin">PIN ${esc(pin)}</span>` : "");
+  return esc(addr);
 }
 
 function viewProducts(){
@@ -494,12 +491,12 @@ function viewRequestForm(){
 function viewLogin(){
   return `<div class="head"><h2>Admin login</h2><div class="rule"></div></div>
     <form class="card" id="loginform" style="max-width:360px">
-      <label for="lg-p">Admin password</label>
+      <label for="lg-p">Admin PIN</label>
       <div class="pwrap">
-        <input id="lg-p" type="password" required autocomplete="current-password">
-        <button type="button" class="eye" id="lgEye" aria-label="Show password">👁</button>
+        <input id="lg-p" type="password" required autocomplete="current-password" placeholder="Enter PIN">
+        <button type="button" class="eye" id="lgEye" aria-label="Show PIN">👁</button>
       </div>
-      <p class="meta hide" id="loginerr" style="color:var(--flag)">Wrong password.</p>
+      <p class="meta hide" id="loginerr" style="color:var(--flag)">Wrong PIN.</p>
       <div class="acts"><button class="btn" type="submit">Sign in</button><button class="btn ghost" type="button" data-tab="home">Cancel</button></div>
     </form>`;
 }
@@ -574,7 +571,7 @@ document.addEventListener("click", e=>{
   if(delreq){
     if(!confirm("Delete this request permanently? This can't be undone.")) return;
     api(`/requests/${delreq.dataset.delreq}`, { method:"DELETE", headers:adminHeaders() })
-      .then(()=>loadRequests()).catch(()=>alert("Couldn't delete — check your admin password is still correct."));
+      .then(()=>loadRequests()).catch(()=>alert("Couldn't delete — check your admin PIN is still correct."));
     return;
   }
 
@@ -584,7 +581,7 @@ document.addEventListener("click", e=>{
     const show = inp.type === "password";
     inp.type = show ? "text" : "password";
     eye.textContent = show ? "🙈" : "👁";
-    eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    eye.setAttribute("aria-label", show ? "Hide PIN" : "Show PIN");
     return;
   }
   if(e.target.id==="adminLogout"){ S.isAdmin=false; S.adminPass=null; save("adminPass",null); S.view="home"; render(); return; }
@@ -633,7 +630,7 @@ document.addEventListener("submit", async e=>{
       render();
       const ok = document.getElementById("saveOk"); if(ok){ ok.textContent="Saved"; setTimeout(()=>{ if(ok) ok.textContent=""; }, 2500); }
     }
-    catch(err){ alert("Couldn't save — check your admin password is still correct."); }
+    catch(err){ alert("Couldn't save — check your admin PIN is still correct."); }
     return;
   }
   if(e.target.id==="reqform"){
