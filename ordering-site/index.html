@@ -146,6 +146,13 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;color:var(--soft)}
 .sk{background:linear-gradient(90deg,var(--line2) 25%,#F7FAF8 37%,var(--line2) 63%);background-size:400% 100%;animation:shine 1.3s linear infinite;border-radius:8px;height:46px;margin-bottom:8px}
 @keyframes shine{0%{background-position:100% 0}100%{background-position:0 0}}
+.loadwrap{text-align:center;padding:36px 10px 24px}
+.loademoji{font-size:2.3rem;display:flex;justify-content:center;gap:16px;margin-bottom:12px}
+.loademoji span{display:inline-block;animation:sway 1.3s ease-in-out infinite}
+.loademoji span:nth-child(2){animation-delay:.15s}
+.loademoji span:nth-child(3){animation-delay:.3s}
+@keyframes sway{0%,100%{transform:rotate(-9deg) translateY(0)}50%{transform:rotate(9deg) translateY(-7px)}}
+.loadmsg{color:var(--soft);font-size:.92rem;min-height:1.3em;transition:opacity .3s var(--ease)}
 
 /* purchases page */
 input[type=tel],input[type=text],input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:.94rem}
@@ -248,7 +255,7 @@ function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
 const S = {
   view:"home", products:null, productsError:false, SHOP:DEFAULT_SHOP,
   cart:{}, showRequestForm:false, isAdmin:false, adminPass:load("adminPass",null), adminError:false,
-  requests:null, unseen:0, contentExpanded:false
+  requests:null, unseen:0, contentExpanded:false, productsLoading:false
 };
 
 function stockBadge(stock){
@@ -257,6 +264,24 @@ function stockBadge(stock){
   return `<span class="stock ok">${stock} in stock</span>`;
 }
 function skeleton(n){ return Array.from({length:n},()=>'<div class="sk"></div>').join(""); }
+const LOAD_MESSAGES = [
+  "Fetching today's stock…",
+  "Weighing the rice and sugar…",
+  "Talking to the billing system…",
+  "Almost there…"
+];
+let loadMsgTimer = null;
+function startLoadMessages(){
+  if(loadMsgTimer) return; // already running
+  let i = 0;
+  loadMsgTimer = setInterval(()=>{
+    const el = document.getElementById("loadMsg"); if(!el){ stopLoadMessages(); return; }
+    i = (i+1) % LOAD_MESSAGES.length;
+    el.style.opacity = 0;
+    setTimeout(()=>{ if(el.isConnected){ el.textContent = LOAD_MESSAGES[i]; el.style.opacity = 1; } }, 250);
+  }, 2200);
+}
+function stopLoadMessages(){ if(loadMsgTimer){ clearInterval(loadMsgTimer); loadMsgTimer = null; } }
 function cartCount(){ return Object.values(S.cart).reduce((a,b)=>a+b,0); }
 
 /* ---------- slides ---------- */
@@ -282,7 +307,7 @@ function render(){
   const i = order.indexOf(S.view);
   track.style.transform = `translateX(-${Math.max(0,i)*100}vw)`;
   document.getElementById("pageDots").innerHTML = order.map((k,n)=>`<button data-godot="${k}" aria-current="${n===i}"></button>`).join("");
-  if(S.view==="products" && S.products===null) loadProducts();
+  if(S.view==="products" && S.products===null && !S.productsError){ startLoadMessages(); if(!S.productsLoading) loadProducts(); }
   if(S.view==="admin" && S.isAdmin && S.requests===null) loadRequests();
   const showTray = cartCount()>0 && S.view==="products" && !S.showRequestForm;
   document.getElementById("tray").classList.toggle("on", showTray);
@@ -379,7 +404,12 @@ function addressHtml(addr){
 function viewProducts(){
   if(S.showRequestForm) return viewRequestForm();
   if(S.productsError) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">Couldn't load products right now — please try again shortly.</div>`;
-  if(!S.products) return `<div class="head"><h2>Products</h2><div class="rule"></div></div>${skeleton(4)}`;
+  if(!S.products) return `<div class="head"><h2>Products</h2><div class="rule"></div></div>
+    <div class="loadwrap">
+      <div class="loademoji"><span>🌾</span><span>🍚</span><span>🍬</span></div>
+      <p class="loadmsg" id="loadMsg">${LOAD_MESSAGES[0]}</p>
+    </div>
+    ${skeleton(4)}`;
   if(!S.products.length) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">No products listed yet.</div>`;
   const byCat = {};
   S.products.forEach(p=>(byCat[p.category]=byCat[p.category]||[]).push(p));
@@ -399,9 +429,14 @@ function viewProducts(){
         </div>`;}).join("")}</div>`).join("");
 }
 async function loadProducts(){
+  if(S.productsLoading) return; // avoid duplicate concurrent fetches
+  S.productsLoading = true;
   try{
     S.products = await api("/products");
+    S.productsError = false;
   }catch(e){ S.productsError = true; }
+  S.productsLoading = false;
+  stopLoadMessages();
   render();
 }
 
@@ -427,8 +462,8 @@ const REQ_STATUS_LABEL = { new:"Sent", seen:"Seen", confirmed:"Confirmed", done:
 async function runLookup(phone){
   const reqBox = document.getElementById("requestResults");
   const invBox = document.getElementById("invoiceResults");
-  reqBox.innerHTML = `<div class="empty">Looking up your requests…</div>`;
-  invBox.innerHTML = `<div class="empty">Looking up your bills…</div>`;
+  reqBox.innerHTML = `<div class="loadwrap" style="padding:20px 10px"><div class="loademoji" style="font-size:1.8rem"><span>🌾</span><span>🍚</span><span>🍬</span></div><p class="loadmsg">Finding your requests…</p></div>`;
+  invBox.innerHTML = `<div class="loadwrap" style="padding:8px 10px 20px"><p class="loadmsg">Fetching your bills from the billing system…</p></div>`;
 
   try{
     const myReqs = await api(`/my-requests?phone=${encodeURIComponent(phone)}`);
