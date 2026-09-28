@@ -81,6 +81,9 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-top:22px}
 .stat b{display:block;font-family:Archivo;font-size:1.4rem;font-weight:700}
 .stat span{font-size:.78rem;color:var(--soft)}
+.stat-loading{grid-column:1/-1;display:flex;align-items:center;gap:12px}
+.stat-loading .loadmsg{font-size:.86rem}
+.loademoji.mini{font-size:1.5rem;gap:8px;margin-bottom:0;justify-content:flex-start}
 
 .section{margin-top:38px}
 .section .kicker{font-size:.78rem;color:var(--ok);font-weight:600;margin-bottom:4px}
@@ -271,17 +274,21 @@ const LOAD_MESSAGES = [
   "Almost there…"
 ];
 let loadMsgTimer = null;
+let loadMsgIndex = 0;
 function startLoadMessages(){
   if(loadMsgTimer) return; // already running
-  let i = 0;
   loadMsgTimer = setInterval(()=>{
-    const el = document.getElementById("loadMsg"); if(!el){ stopLoadMessages(); return; }
-    i = (i+1) % LOAD_MESSAGES.length;
-    el.style.opacity = 0;
-    setTimeout(()=>{ if(el.isConnected){ el.textContent = LOAD_MESSAGES[i]; el.style.opacity = 1; } }, 250);
+    const els = document.querySelectorAll(".loadmsg.rot");
+    if(!els.length){ stopLoadMessages(); return; }
+    loadMsgIndex = (loadMsgIndex+1) % LOAD_MESSAGES.length;
+    const text = LOAD_MESSAGES[loadMsgIndex];
+    els.forEach(el=>{
+      el.style.opacity = 0;
+      setTimeout(()=>{ if(el.isConnected){ el.textContent = text; el.style.opacity = 1; } }, 250);
+    });
   }, 2200);
 }
-function stopLoadMessages(){ if(loadMsgTimer){ clearInterval(loadMsgTimer); loadMsgTimer = null; } }
+function stopLoadMessages(){ if(loadMsgTimer){ clearInterval(loadMsgTimer); loadMsgTimer = null; } loadMsgIndex = 0; }
 function cartCount(){ return Object.values(S.cart).reduce((a,b)=>a+b,0); }
 
 /* ---------- slides ---------- */
@@ -307,7 +314,10 @@ function render(){
   const i = order.indexOf(S.view);
   track.style.transform = `translateX(-${Math.max(0,i)*100}vw)`;
   document.getElementById("pageDots").innerHTML = order.map((k,n)=>`<button data-godot="${k}" aria-current="${n===i}"></button>`).join("");
-  if(S.view==="products" && S.products===null && !S.productsError){ startLoadMessages(); if(!S.productsLoading) loadProducts(); }
+  if(S.products===null && !S.productsError){
+    startLoadMessages();
+    if(S.view==="products" && !S.productsLoading) loadProducts();
+  }
   if(S.view==="admin" && S.isAdmin && S.requests===null) loadRequests();
   const showTray = cartCount()>0 && S.view==="products" && !S.showRequestForm;
   document.getElementById("tray").classList.toggle("on", showTray);
@@ -338,8 +348,13 @@ function viewHome(){
       <button class="btn ghost" data-tab="purchases">Find my orders</button>
     </div>
     <div class="stat-row">
-      <div class="stat"><b id="statCount">${S.products ? S.products.length : "–"}</b><span>products listed</span></div>
-      <div class="stat"><b>${S.products ? S.products.filter(p=>p.stock>0).length : "–"}</b><span>in stock right now</span></div>
+      ${(S.products===null && !S.productsError) ? `
+        <div class="stat-loading">
+          <div class="loademoji mini"><span>🌾</span><span>🍚</span><span>🍬</span></div>
+          <span class="loadmsg rot">${LOAD_MESSAGES[0]}</span>
+        </div>` : `
+        <div class="stat"><b id="statCount">${S.products ? S.products.length : "–"}</b><span>products listed</span></div>
+        <div class="stat"><b>${S.products ? S.products.filter(p=>p.stock>0).length : "–"}</b><span>in stock right now</span></div>`}
     </div>
   </section>
 
@@ -407,7 +422,7 @@ function viewProducts(){
   if(!S.products) return `<div class="head"><h2>Products</h2><div class="rule"></div></div>
     <div class="loadwrap">
       <div class="loademoji"><span>🌾</span><span>🍚</span><span>🍬</span></div>
-      <p class="loadmsg" id="loadMsg">${LOAD_MESSAGES[0]}</p>
+      <p class="loadmsg rot">${LOAD_MESSAGES[0]}</p>
     </div>
     ${skeleton(4)}`;
   if(!S.products.length) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">No products listed yet.</div>`;
