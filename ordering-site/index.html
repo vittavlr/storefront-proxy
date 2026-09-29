@@ -513,10 +513,20 @@ function clearCart(){ S.cart={}; S.extraChecked={}; S.extraTotal={}; S.maxNotice
 async function loadProducts(){
   if(S.productsLoading) return; // avoid duplicate concurrent fetches
   S.productsLoading = true;
-  try{
-    S.products = await api("/products");
-    S.productsError = false;
-  }catch(e){ S.productsError = true; }
+  // Render's free tier can take a while to wake a sleeping service (or two,
+  // if this proxy has to wait on your billing backend waking up too) — keep
+  // trying quietly instead of giving up after one failed attempt.
+  const delays = [3000, 6000, 10000, 15000, 20000]; // ~54s of patience in total
+  for(let attempt=0; attempt<=delays.length; attempt++){
+    try{
+      S.products = await api("/products");
+      S.productsError = false;
+      break;
+    }catch(e){
+      S.productsError = true;
+      if(attempt < delays.length) await new Promise(r=>setTimeout(r, delays[attempt]));
+    }
+  }
   S.productsLoading = false;
   stopLoadMessages();
   render();
