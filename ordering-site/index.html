@@ -138,9 +138,28 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .head .rule{flex:1;height:1px;background:var(--line)}
 .meta{font-size:.8rem;color:var(--soft)}
 .rows{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:18px}
-.row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line2)}
+.row{display:flex;flex-direction:column;padding:10px 14px;border-bottom:1px solid var(--line2)}
+.rowmain{display:flex;align-items:center;gap:12px}
 .row:last-child{border-bottom:0}
 .row .name{font-weight:500;font-size:.94rem}
+
+/* extra-stock request (appears under a product once a quantity is chosen) */
+.extra-box{margin-top:8px;padding:10px 12px;background:var(--line2);border-radius:10px;font-size:.84rem}
+.maxnote{color:var(--warn);font-weight:500;margin-bottom:8px;line-height:1.4}
+.extra-check{display:flex;align-items:center;gap:8px;margin:0;font-size:.84rem;color:var(--ink);cursor:pointer}
+.extra-check input{width:16px;height:16px;margin:0;cursor:pointer}
+.extra-total{margin-top:8px}
+.extra-total label{margin:0 0 4px;font-size:.78rem}
+.extra-total input{width:160px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:.92rem}
+.extra-hint{display:block;margin-top:6px;color:var(--soft);font-size:.78rem}
+.pill.st-extra{background:#F3ECFA;border-color:#D9C7EE;color:#6A3FA0}
+
+/* request item with a stock part + an extra part */
+.lines li.has-extra{display:block}
+.xhead{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px}
+.xpart{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 4px 10px;margin-top:3px;border-left:2px solid var(--line)}
+.xlabel{font-size:.74rem;color:var(--soft);min-width:68px}
+.statsel{padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:var(--card);font-size:.8rem;color:var(--ink)}
 .row .rate{margin-left:auto;font-family:Archivo;font-weight:600;font-size:.9rem;white-space:nowrap}
 .stock{font-size:.76rem;padding:2px 9px;border-radius:999px;white-space:nowrap}
 .stock.ok{background:#ECF6F0;color:var(--ok)}
@@ -258,7 +277,8 @@ function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
 const S = {
   view:"home", products:null, productsError:false, SHOP:DEFAULT_SHOP,
   cart:{}, showRequestForm:false, isAdmin:false, adminPass:load("adminPass",null), adminError:false,
-  requests:null, unseen:0, contentExpanded:false, productsLoading:false
+  requests:null, unseen:0, contentExpanded:false, productsLoading:false,
+  extraChecked:{}, extraTotal:{}, maxNotice:{}
 };
 
 function stockBadge(stock){
@@ -433,16 +453,63 @@ function viewProducts(){
       <h3 style="margin:14px 0 6px">${esc(cat)}</h3>
       <div class="rows">${byCat[cat].map(p=>{
         const q = S.cart[p.id]||0;
-        return `<div class="row">
-          <span class="name">${esc(p.name)} <span class="meta">₹${p.price.toFixed(2)}/${esc(p.unit)}</span></span>
-          ${stockBadge(p.stock)}
-          <span class="step">
-            <button data-dec="${esc(p.id)}" ${q?"":"disabled"}>−</button>
-            <input type="number" min="0" max="${p.stock}" inputmode="numeric" class="qtyinput" data-qty="${esc(p.id)}" value="${q}">
-            <button data-inc="${esc(p.id)}" ${p.stock<=0?"disabled":""}>+</button>
-          </span>
+        return `<div class="row" data-row="${esc(p.id)}">
+          <div class="rowmain">
+            <span class="name">${esc(p.name)} <span class="meta">₹${p.price.toFixed(2)}/${esc(p.unit)}</span></span>
+            ${stockBadge(p.stock)}
+            <span class="step">
+              <button data-dec="${esc(p.id)}" ${q?"":"disabled"}>−</button>
+              <input type="number" min="0" max="${p.stock}" inputmode="numeric" class="qtyinput" data-qty="${esc(p.id)}" value="${q}" ${p.stock<=0?"disabled":""}>
+              <button data-inc="${esc(p.id)}" ${p.stock<=0?"disabled":""}>+</button>
+            </span>
+          </div>
+          ${extraBoxHtml(p)}
         </div>`;}).join("")}</div>`).join("");
 }
+
+/* ---------- extra-stock request helpers ---------- */
+function fmtNum(n){ return String(+Number(n).toFixed(3)); }
+// How many units beyond the chosen quantity the customer asked for (0 if none/invalid)
+function computeExtra(id){
+  const q = S.cart[id]||0, total = S.extraTotal[id];
+  return (S.extraChecked[id] && total > q) ? +(total - q).toFixed(3) : 0;
+}
+function extraHintText(p){
+  const q = S.cart[p.id]||0, extra = computeExtra(p.id);
+  return extra > 0
+    ? `Requesting ${fmtNum(q)} ${p.unit} from stock + ${fmtNum(extra)} ${p.unit} extra`
+    : `Enter a total higher than ${fmtNum(q)} ${p.unit}`;
+}
+function extraBoxHtml(p){
+  const q = S.cart[p.id]||0;
+  if(!q) return "";
+  const checked = !!S.extraChecked[p.id];
+  const total = S.extraTotal[p.id] ?? "";
+  const notice = S.maxNotice[p.id]
+    ? `<div class="maxnote">Only ${fmtNum(p.stock)} ${esc(p.unit)} in stock — we've set your quantity to the maximum (${fmtNum(p.stock)}). Need more? Tick the box below.</div>`
+    : "";
+  return `<div class="extra-box">
+    ${notice}
+    <label class="extra-check"><input type="checkbox" data-extrachk="${esc(p.id)}" ${checked?"checked":""}> I need more than what's in stock</label>
+    ${checked ? `<div class="extra-total">
+      <label>Total quantity needed (including the ${fmtNum(q)} ${esc(p.unit)} from stock)</label>
+      <input type="number" min="${q+1}" inputmode="numeric" data-extratotal="${esc(p.id)}" value="${total}" placeholder="e.g. ${q+5}">
+      <span class="extra-hint">${esc(extraHintText(p))}</span>
+    </div>` : ""}
+  </div>`;
+}
+// Rebuild only the extra section of one row (keeps focus in the quantity box while typing)
+function refreshRowExtra(id){
+  const row = document.querySelector(`[data-row="${CSS.escape(id)}"]`); if(!row) return;
+  const p = (S.products||[]).find(x=>x.id===id); if(!p) return;
+  const old = row.querySelector(".extra-box"); if(old) old.remove();
+  const html = extraBoxHtml(p);
+  if(html) row.insertAdjacentHTML("beforeend", html);
+}
+function clearItem(id){
+  delete S.cart[id]; delete S.extraChecked[id]; delete S.extraTotal[id]; delete S.maxNotice[id];
+}
+function clearCart(){ S.cart={}; S.extraChecked={}; S.extraTotal={}; S.maxNotice={}; }
 async function loadProducts(){
   if(S.productsLoading) return; // avoid duplicate concurrent fetches
   S.productsLoading = true;
@@ -458,7 +525,7 @@ async function loadProducts(){
 function cartLines(){
   return Object.keys(S.cart).filter(id=>S.cart[id]>0).map(id=>{
     const p = (S.products||[]).find(x=>x.id===id) || {};
-    return { name:p.name||"Item", unit:p.unit||"", qty:S.cart[id] };
+    return { name:p.name||"Item", unit:p.unit||"", qty:S.cart[id], extra:computeExtra(id) };
   });
 }
 function viewPurchases(){
@@ -474,6 +541,25 @@ function viewPurchases(){
     <div id="invoiceResults" style="margin-top:16px"></div>`;
 }
 const REQ_STATUS_LABEL = { new:"Sent", seen:"Seen", confirmed:"Confirmed", done:"Completed", cancelled:"Cancelled" };
+const STATUS_KEYS = ["new","seen","confirmed","done","cancelled"];
+function statusPill(s){ return `<span class="pill st-${esc(s)}">${esc(REQ_STATUS_LABEL[s] || s)}</span>`; }
+// One product line inside a request. Items with no extra look like before.
+// Items with extra show "stock part" and "extra part", each with its own status
+// (falling back to the request's overall status until the admin marks them).
+function itemLineHtml(i, reqStatus, admin, reqId, idx){
+  const extra = Number(i.extra)||0;
+  if(!extra) return `<li><span>${esc(i.name)}</span><span>${fmtNum(i.qty)} ${esc(i.unit)}</span></li>`;
+  const sStatus = i.stockStatus || reqStatus;
+  const eStatus = i.extraStatus || reqStatus;
+  const ctrl = (part, cur) => admin
+    ? `<select class="statsel" data-partreq="${esc(reqId)}" data-item="${idx}" data-part="${part}" aria-label="Status of the ${part} part">${STATUS_KEYS.map(k=>`<option value="${k}" ${k===cur?"selected":""}>${REQ_STATUS_LABEL[k]}</option>`).join("")}</select>`
+    : "";
+  return `<li class="has-extra">
+    <div class="xhead"><span>${esc(i.name)}</span><span class="meta">${fmtNum(i.qty)} + ${fmtNum(extra)} ${esc(i.unit)} (total ${fmtNum(Number(i.qty)+extra)})</span></div>
+    <div class="xpart"><span class="xlabel">From stock</span><b>${fmtNum(i.qty)} ${esc(i.unit)}</b>${statusPill(sStatus)}${ctrl("stock", sStatus)}</div>
+    <div class="xpart"><span class="xlabel">Extra</span><b>${fmtNum(extra)} ${esc(i.unit)}</b>${statusPill(eStatus)}${ctrl("extra", eStatus)}</div>
+  </li>`;
+}
 async function runLookup(phone){
   const reqBox = document.getElementById("requestResults");
   const invBox = document.getElementById("invoiceResults");
@@ -491,7 +577,7 @@ async function runLookup(phone){
             <span class="pill st-${esc(r.status)}">${esc(REQ_STATUS_LABEL[r.status] || r.status)}</span>
             <span class="meta">${new Date(r.createdAt).toLocaleDateString()}</span>
           </div>
-          <ul class="lines">${r.items.map(i=>`<li><span>${esc(i.name)}</span><span>${i.qty} ${esc(i.unit)}</span></li>`).join("")}</ul>
+          <ul class="lines">${r.items.map((i,idx)=>itemLineHtml(i, r.status, false, r.id, idx)).join("")}</ul>
         </div>`).join("");
     }
   }catch(e){ reqBox.innerHTML = `<div class="empty">Couldn't look up your requests right now.</div>`; }
@@ -526,7 +612,9 @@ function viewRequestForm(){
   const c = load("contact",{});
   return `<div class="head"><h2>Send request</h2><div class="rule"></div></div>
     <div class="card">
-      <ul class="lines">${lines.map(l=>`<li><span>${esc(l.name)}</span><span>${l.qty} ${esc(l.unit)}</span></li>`).join("")}</ul>
+      <ul class="lines">${lines.map(l=>l.extra>0
+        ? `<li><span>${esc(l.name)}</span><span>${fmtNum(l.qty)} ${esc(l.unit)} + ${fmtNum(l.extra)} extra <span class="meta">(total ${fmtNum(l.qty+l.extra)})</span></span></li>`
+        : `<li><span>${esc(l.name)}</span><span>${fmtNum(l.qty)} ${esc(l.unit)}</span></li>`).join("")}</ul>
     </div>
     <form class="card" id="reqform" style="margin-top:10px">
       <label for="rf-name">Your name</label><input id="rf-name" type="text" required value="${esc(c.name||"")}">
@@ -579,10 +667,10 @@ function viewAdmin(){
 }
 function reqCard(r){
   return `<div class="reqcard ${r.status==="new"?"new":""}">
-    <div class="inv-top"><span class="code">#${esc(r.code)}</span><span class="pill st-${esc(r.status)}">${esc(REQ_STATUS_LABEL[r.status] || r.status)}</span><span class="meta">${new Date(r.createdAt).toLocaleString()}</span></div>
+    <div class="inv-top"><span class="code">#${esc(r.code)}</span><span class="pill st-${esc(r.status)}">${esc(REQ_STATUS_LABEL[r.status] || r.status)}</span>${r.items.some(i=>Number(i.extra)>0) ? '<span class="pill st-extra">Extra stock requested</span>' : ""}<span class="meta">${new Date(r.createdAt).toLocaleString()}</span></div>
     <p style="margin:8px 0 4px"><b>${esc(r.name)}</b> · ${esc(r.phone)}${r.address?`<br><span class="meta">${esc(r.address)}</span>`:""}</p>
     ${r.notes?`<p class="meta">Note: ${esc(r.notes)}</p>`:""}
-    <ul class="lines">${r.items.map(i=>`<li><span>${esc(i.name)}</span><span>${i.qty} ${esc(i.unit)}</span></li>`).join("")}</ul>
+    <ul class="lines">${r.items.map((i,idx)=>itemLineHtml(i, r.status, true, r.id, idx)).join("")}</ul>
     <div class="acts">
       ${["seen","confirmed","done","cancelled"].filter(s=>s!==r.status).map(s=>`<button class="btn ghost small" data-setreq="${esc(r.id)}" data-status="${s}">${s}</button>`).join("")}
       <a class="btn ghost small" style="text-decoration:none" href="tel:${esc(r.phone)}">Call</a>
@@ -605,10 +693,29 @@ document.addEventListener("click", e=>{
   const tab = e.target.closest("[data-tab]"); if(tab){ S.view = (tab.dataset.tab==="login" && S.isAdmin) ? "admin" : tab.dataset.tab; render(); return; }
   const dot = e.target.closest("[data-godot]"); if(dot){ S.view=dot.dataset.godot; render(); return; }
 
-  const inc = e.target.closest("[data-inc]"); if(inc){ const id=inc.dataset.inc; S.cart[id]=(S.cart[id]||0)+1; render(); return; }
-  const dec = e.target.closest("[data-dec]"); if(dec){ const id=dec.dataset.dec; S.cart[id]=Math.max(0,(S.cart[id]||0)-1); if(!S.cart[id]) delete S.cart[id]; render(); return; }
-  if(e.target.id==="traygo"){ S.showRequestForm=true; render(); return; }
-  if(e.target.id==="trayclear"){ S.cart={}; render(); return; }
+  const inc = e.target.closest("[data-inc]"); if(inc){
+    const id=inc.dataset.inc;
+    const p=(S.products||[]).find(x=>x.id===id); const cur=S.cart[id]||0;
+    if(p && cur >= p.stock){ S.maxNotice[id]=true; }            // at the limit: explain instead of exceeding it
+    else { S.cart[id]=cur+1; S.maxNotice[id]=false; }
+    render(); return;
+  }
+  const dec = e.target.closest("[data-dec]"); if(dec){
+    const id=dec.dataset.dec; const next=Math.max(0,(S.cart[id]||0)-1);
+    if(next) { S.cart[id]=next; S.maxNotice[id]=false; } else clearItem(id);
+    render(); return;
+  }
+  if(e.target.id==="traygo"){
+    // an "extra" box that's ticked but has no valid total would silently request nothing extra — flag it
+    const bad = Object.keys(S.cart).filter(id=>S.cart[id]>0 && S.extraChecked[id] && !(S.extraTotal[id] > S.cart[id]));
+    if(bad.length){
+      const names = bad.map(id=>((S.products||[]).find(p=>p.id===id)||{}).name||"an item");
+      alert(`For ${names.join(", ")}: enter a total quantity higher than the amount taken from stock, or untick "I need more than what's in stock".`);
+      return;
+    }
+    S.showRequestForm=true; render(); return;
+  }
+  if(e.target.id==="trayclear"){ clearCart(); render(); return; }
 
   if(e.target.id==="backToProducts"){ S.showRequestForm=false; render(); return; }
   if(e.target.id==="lookupBtn"){ runLookup(document.getElementById("phoneInput").value); return; }
@@ -643,17 +750,52 @@ function updateTray(){
   if(showTray) document.getElementById("traysum").textContent = `${cartCount()} item${cartCount()===1?"":"s"} selected`;
 }
 document.addEventListener("input", e=>{
+  // --- typing the "total needed" box for extra stock ---
+  const et = e.target.closest("[data-extratotal]");
+  if(et){
+    const id = et.dataset.extratotal;
+    const v = parseFloat(et.value);
+    if(isNaN(v)) delete S.extraTotal[id]; else S.extraTotal[id] = v;
+    const p = (S.products||[]).find(x=>x.id===id);
+    const hint = et.parentElement.querySelector(".extra-hint");
+    if(p && hint) hint.textContent = extraHintText(p);
+    return;
+  }
+  // --- typing the quantity taken from stock ---
   const q = e.target.closest("[data-qty]"); if(!q) return;
   const id = q.dataset.qty;
   const p = (S.products||[]).find(x=>x.id===id);
   const max = p ? p.stock : Infinity;
   const raw = q.value;
   if(raw === ""){ return; } // let them clear the box while typing without snapping it back
-  let n = Math.max(0, Math.min(max, parseInt(raw,10) || 0));
-  if(n) S.cart[id] = n; else delete S.cart[id];
+  let n = Math.max(0, parseInt(raw,10) || 0);
+  let clamped = false;
+  if(n > max){ n = max; q.value = n; clamped = true; } // over the stock: switch to the maximum and say so
+  if(n) S.cart[id] = n; else clearItem(id);
+  S.maxNotice[id] = clamped && n > 0;
   const row = q.closest(".row");
   if(row) row.querySelector("[data-dec]").disabled = !n;
+  refreshRowExtra(id);
   updateTray();
+});
+// ticking / unticking "I need more than what's in stock", and the admin's per-part status dropdowns
+document.addEventListener("change", e=>{
+  const chk = e.target.closest("[data-extrachk]");
+  if(chk){
+    const id = chk.dataset.extrachk;
+    S.extraChecked[id] = chk.checked;
+    if(!chk.checked) delete S.extraTotal[id];
+    refreshRowExtra(id);
+    if(chk.checked){ const t = document.querySelector(`[data-extratotal="${CSS.escape(id)}"]`); if(t) t.focus(); }
+    return;
+  }
+  const sel = e.target.closest("[data-partreq]");
+  if(sel){
+    api(`/requests/${sel.dataset.partreq}`, { method:"PATCH", headers:adminHeaders(),
+      body:JSON.stringify({ status:sel.value, itemIndex:Number(sel.dataset.item), part:sel.dataset.part }) })
+      .then(()=>loadRequests())
+      .catch(()=>alert("Couldn't update — check your admin PIN is still correct."));
+  }
 });
 document.addEventListener("blur", e=>{
   const q = e.target.closest && e.target.closest("[data-qty]"); if(!q) return;
@@ -694,7 +836,7 @@ document.addEventListener("submit", async e=>{
     try{
       const r = await api("/requests", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,phone,address,notes,items}) });
       save("contact",{name,phone,address});
-      S.cart={}; S.showRequestForm=false;
+      clearCart(); S.showRequestForm=false;
       alert(`Request sent — reference #${r.code}. The shop will contact you to confirm.`);
       render();
     }catch(err){ alert("Couldn't send that — please try again."); }
