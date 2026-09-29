@@ -160,14 +160,23 @@ app.post("/requests", requestLimiter, (req, res) => {
     phone: String(phone).slice(0, 30),
     address: String(address || "").slice(0, 300),
     notes: String(notes || "").slice(0, 300),
-    items: items.slice(0, 30).map((it) => ({
-      name: String(it.name || "").slice(0, 120),
-      unit: String(it.unit || "").slice(0, 20),
-      qty: Number(it.qty) || 0,
-    })),
+    items: items
+      .slice(0, 30)
+      .map((it) => ({
+        name: String(it.name || "").slice(0, 120),
+        unit: String(it.unit || "").slice(0, 20),
+        qty: Math.min(1e6, Math.max(0, Number(it.qty) || 0)),   // quantity taken from stock
+        extra: Math.min(1e6, Math.max(0, Number(it.extra) || 0)), // extra beyond current stock (0 = none)
+        // stockStatus / extraStatus stay unset until the admin marks them
+        // individually; until then each follows the request's overall status.
+      }))
+      .filter((it) => it.qty > 0 || it.extra > 0),
     status: "new",
     createdAt: new Date().toISOString(),
   };
+  if (!entry.items.length) {
+    return res.status(400).json({ error: "at least one item with a quantity is required" });
+  }
   all.unshift(entry);
   writeJson(REQUESTS_FILE, all.slice(0, 500));
   res.status(201).json({ code: entry.code });
@@ -190,11 +199,30 @@ app.get("/my-requests", (req, res) => {
   res.json(mine);
 });
 
+const ALLOWED_STATUS = ["new", "seen", "confirmed", "done", "cancelled"];
+
+// Two ways to call this:
+//  - { status }                          → sets the whole request's status
+//  - { status, itemIndex, part }         → sets ONE part of ONE item:
+//        part "stock" = the quantity taken from stock
+//        part "extra" = the extra quantity beyond stock
 app.patch("/requests/:id", requireAdmin, (req, res) => {
   const all = readJson(REQUESTS_FILE, []);
   const idx = all.findIndex((r) => r.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "Not found" });
-  all[idx].status = req.body?.status || all[idx].status;
+
+  const { status, itemIndex, part } = req.body || {};
+  if (!ALLOWED_STATUS.includes(status)) return res.status(400).json({ error: "Invalid status" });
+
+  if (itemIndex !== undefined) {
+    const item = all[idx].items[Number(itemIndex)];
+    if (!item) return res.status(400).json({ error: "No such item" });
+    if (part === "stock") item.stockStatus = status;
+    else if (part === "extra" && item.extra > 0) item.extraStatus = status;
+    else return res.status(400).json({ error: "Invalid part" });
+  } else {
+    all[idx].status = status;
+  }
   writeJson(REQUESTS_FILE, all);
   res.json(all[idx]);
 });
