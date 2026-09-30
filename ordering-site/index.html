@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+  // Applied synchronously, before the page paints, so there's no flash of
+  // the wrong theme: use the visitor's saved choice, or their system
+  // preference the very first time they visit.
+  (function(){
+    try{
+      var saved = localStorage.getItem("theme");
+      var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      if(theme === "dark") document.documentElement.setAttribute("data-theme","dark");
+    }catch(e){}
+  })();
+</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sri Amman Mandi</title>
@@ -15,6 +27,13 @@
   --sh:0 1px 2px rgba(22,33,28,.06), 0 8px 24px rgba(22,33,28,.05);
   --ease:cubic-bezier(.2,.7,.2,1);
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#12161A; --card:#1B2026; --ink:#EAEDEF; --soft:#8B96A0; --line:#2A3038; --line2:#232830;
+  --accent:#5B9BE0; --ok:#4FAE7B; --warn:#E08A4C; --flag:#E5707C;
+  --sh:0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-behavior:smooth}
@@ -51,6 +70,8 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;backgroun
 nav{margin-left:auto;display:flex;gap:2px;background:var(--line2);padding:3px;border-radius:999px}
 nav button{background:none;border:0;color:var(--soft);padding:6px 12px;border-radius:999px;font-size:.84rem;font-weight:500;transition:color .18s var(--ease),background .18s var(--ease)}
 nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.theme-toggle{margin-left:8px;flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:.95rem;display:grid;place-items:center;transition:transform .2s var(--ease),background .2s var(--ease)}
+.theme-toggle:hover{transform:rotate(15deg)}
 
 /* full-page horizontal slider */
 .slides-outer{position:relative;overflow:hidden;height:calc(100dvh - var(--headerH,54px) - env(safe-area-inset-top,0px))}
@@ -69,6 +90,7 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 /* landing sections */
 .landing-hero{position:relative;overflow:hidden;border-radius:16px;padding:34px 24px;margin-top:4px;
   background:linear-gradient(135deg,#EFF6EE 0%,#F7F6EC 45%,#EAF1F8 100%);border:1px solid var(--line)}
+:root[data-theme="dark"] .landing-hero{background:linear-gradient(135deg,#1B2620 0%,#211F1A 45%,#1A2430 100%)}
 .landing-hero .k{display:inline-block;font-size:.76rem;color:var(--ok);background:#E4F3E9;border:1px solid #C7E5D2;padding:3px 10px;border-radius:999px;margin-bottom:12px}
 .landing-hero h1{max-width:20ch}
 .landing-hero p{max-width:52ch;color:var(--soft);font-size:1rem;margin-top:10px}
@@ -93,6 +115,7 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:18px}
 .spec{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
 .spec .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:8px}
+:root[data-theme="dark"] .spec .ic{filter:brightness(.42) saturate(1.15)}
 .spec p{font-size:.86rem;color:var(--soft);margin:2px 0 0}
 
 .compare{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
@@ -153,6 +176,7 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .extra-total input{width:160px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:.92rem}
 .extra-hint{display:block;margin-top:6px;color:var(--soft);font-size:.78rem}
 .pill.st-extra{background:#F3ECFA;border-color:#D9C7EE;color:#6A3FA0}
+:root[data-theme="dark"] .pill.st-extra{background:#2E2440;border-color:#48355F;color:#C6A6EC}
 
 /* request item with a stock part + an extra part */
 .lines li.has-extra{display:block}
@@ -165,8 +189,12 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .stock.ok{background:#ECF6F0;color:var(--ok)}
 .stock.low{background:#FDF4EC;color:var(--warn)}
 .stock.out{background:#FCECEE;color:var(--flag)}
+:root[data-theme="dark"] .stock.ok{background:#1B3327}
+:root[data-theme="dark"] .stock.low{background:#3A2B1C}
+:root[data-theme="dark"] .stock.out{background:#3A2229}
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;color:var(--soft)}
 .sk{background:linear-gradient(90deg,var(--line2) 25%,#F7FAF8 37%,var(--line2) 63%);background-size:400% 100%;animation:shine 1.3s linear infinite;border-radius:8px;height:46px;margin-bottom:8px}
+:root[data-theme="dark"] .sk{background:linear-gradient(90deg,var(--line2) 25%,#2E353D 37%,var(--line2) 63%);background-size:400% 100%}
 @keyframes shine{0%{background-position:100% 0}100%{background-position:0 0}}
 .loadwrap{text-align:center;padding:36px 10px 24px}
 .loademoji{font-size:2.3rem;display:flex;justify-content:center;gap:16px;margin-bottom:12px}
@@ -190,6 +218,11 @@ input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,95,168,.12);
 .pill.st-confirmed{background:#E9F1F8;border-color:#B8D2EE;color:#164C87}
 .pill.st-done{background:#ECF6F0;border-color:#BEE0CC;color:var(--ok)}
 .pill.st-cancelled{background:#FCECEE;border-color:#F0C2C7;color:var(--flag)}
+:root[data-theme="dark"] .pill.st-new{background:#3A2B1C;border-color:#5C4426}
+:root[data-theme="dark"] .pill.st-seen,
+:root[data-theme="dark"] .pill.st-confirmed{background:#1E2C3D;border-color:#33455C;color:var(--accent)}
+:root[data-theme="dark"] .pill.st-done{background:#1B3327;border-color:#2C4E3B}
+:root[data-theme="dark"] .pill.st-cancelled{background:#3A2229;border-color:#5C333C}
 a.link{color:var(--accent);text-decoration:none;font-weight:600;font-size:.88rem}
 .hide{display:none!important}
 .pwrap{position:relative}
@@ -241,6 +274,7 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
   <div class="top-in">
     <button class="brand" data-tab="home" id="brand"></button>
     <nav id="nav"></nav>
+    <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode">🌙</button>
   </div>
 </header>
 <div class="slides-outer" id="slidesOuter">
@@ -863,6 +897,21 @@ document.getElementById("slidesOuter").addEventListener("touchend", e=>{
   if(dx<0 && i<order.length-1){ S.view=order[i+1]; render(); }
   else if(dx>0 && i>0){ S.view=order[i-1]; render(); }
 }, {passive:true});
+
+/* ---------- theme toggle ---------- */
+function applyThemeButton(){
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const btn = document.getElementById("themeToggle");
+  btn.textContent = isDark ? "☀️" : "🌙";
+  btn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+}
+document.getElementById("themeToggle").addEventListener("click", ()=>{
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  if(isDark){ document.documentElement.removeAttribute("data-theme"); try{ localStorage.setItem("theme","light"); }catch(e){} }
+  else{ document.documentElement.setAttribute("data-theme","dark"); try{ localStorage.setItem("theme","dark"); }catch(e){} }
+  applyThemeButton();
+});
+applyThemeButton();
 
 /* ---------- boot ---------- */
 render();
