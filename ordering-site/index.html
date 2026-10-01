@@ -3,13 +3,12 @@
 <head>
 <script>
   // Applied synchronously, before the page paints, so there's no flash of
-  // the wrong theme: use the visitor's saved choice, or their system
-  // preference the very first time they visit.
+  // the wrong theme. Always light on a first-ever visit — dark mode only
+  // turns on once the visitor explicitly picks it via the toggle, and
+  // that choice is then remembered for next time.
   (function(){
     try{
-      var saved = localStorage.getItem("theme");
-      var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-      if(theme === "dark") document.documentElement.setAttribute("data-theme","dark");
+      if(localStorage.getItem("theme") === "dark") document.documentElement.setAttribute("data-theme","dark");
     }catch(e){}
   })();
 </script>
@@ -69,6 +68,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;tr
 
 /* header + nav */
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:rgba(245,247,246,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+:root[data-theme="dark"] header.top{background:rgba(18,22,26,.88)}
 .top-in{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px}
 .brand{font-family:Archivo;font-weight:700;font-size:.98rem;line-height:1.15;background:none;border:0;text-align:left;padding:0}
 .brand small{display:block;font-family:Inter;font-weight:400;font-size:.72rem;color:var(--soft)}
