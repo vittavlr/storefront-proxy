@@ -36,6 +36,11 @@
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:inherit}
+body,.card,.slide,.slides-outer,header.top,.site-footer,nav,nav button,.brand,input,textarea,select,
+.row,.rows,.spec,.quote,.inv,.reqcard,.admin-card,.field input,.field textarea,.compare,.compare th,.compare td,
+.info div,.step,.step .qtyinput,.step button,.pill,.stock,.pagedots button,.theme-toggle,.tray,.map-embed{
+  transition:background-color .35s var(--ease),color .35s var(--ease),border-color .35s var(--ease),box-shadow .35s var(--ease);
+}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:Archivo,Inter,sans-serif;letter-spacing:-.018em;margin:0;font-weight:600}
@@ -47,7 +52,7 @@ a{color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
 
-body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;transition:background .35s var(--ease);
   background:
     radial-gradient(60vmax 60vmax at 8% -6%, rgba(180,101,27,.10), transparent 60%),
     radial-gradient(55vmax 55vmax at 100% 10%, rgba(31,95,168,.09), transparent 60%),
@@ -92,11 +97,12 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
   background:linear-gradient(135deg,#EFF6EE 0%,#F7F6EC 45%,#EAF1F8 100%);border:1px solid var(--line)}
 :root[data-theme="dark"] .landing-hero{background:linear-gradient(135deg,#1B2620 0%,#211F1A 45%,#1A2430 100%)}
 .landing-hero .k{display:inline-block;font-size:.76rem;color:var(--ok);background:#E4F3E9;border:1px solid #C7E5D2;padding:3px 10px;border-radius:999px;margin-bottom:12px}
+:root[data-theme="dark"] .landing-hero .k{background:#1B3327;border-color:#2C4E3B}
 .landing-hero h1{max-width:20ch}
 .landing-hero p{max-width:52ch;color:var(--soft);font-size:1rem;margin-top:10px}
 .landing-hero .grain{position:absolute;right:-30px;bottom:-40px;font-size:8rem;opacity:.09;transform:rotate(-8deg)}
 .landing-cta{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
-.btn{background:var(--ink);color:#fff;border:0;border-radius:9px;padding:10px 16px;font-weight:600;font-size:.9rem;transition:transform .16s var(--ease)}
+.btn{background:var(--ink);color:var(--bg);border:0;border-radius:9px;padding:10px 16px;font-weight:600;font-size:.9rem;transition:transform .16s var(--ease),background-color .3s var(--ease),color .3s var(--ease)}
 .btn:hover{transform:translateY(-1px)}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn.small{padding:6px 11px;font-size:.82rem;font-weight:500}
@@ -124,6 +130,8 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .compare tr:last-child td{border-bottom:0}
 .compare thead th{background:var(--line2);font-family:Archivo;font-weight:600;font-size:.8rem;color:var(--soft)}
 .compare th.us,.compare td.us{background:#EEF6F0;color:var(--ok);font-weight:600}
+:root[data-theme="dark"] .compare th.us,
+:root[data-theme="dark"] .compare td.us{background:#1B3327}
 .compare .no{color:var(--soft)}
 
 .quote-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
@@ -248,6 +256,7 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
 
 /* admin */
 .badge{display:inline-flex;min-width:16px;height:16px;padding:0 4px;margin-left:5px;border-radius:8px;background:var(--flag);color:#fff;font-size:.68rem;align-items:center;justify-content:center}
+:root[data-theme="dark"] .badge{background:#B0334A}
 .admin-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh);margin-bottom:22px}
 .admin-card h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin-bottom:14px}
 .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 16px}
