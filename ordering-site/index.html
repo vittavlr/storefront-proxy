@@ -460,7 +460,7 @@ function viewHome(){
       <div class="footer-cols">
         <div class="map-embed">
           <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps?q=12.860972,79.132833&z=17${S.mapSatellite ? "&t=k" : ""}&output=embed"></iframe>
+            src="${mapSrc(S.mapSatellite)}"></iframe>
           <button class="map-toggle" id="mapToggle" type="button">${S.mapSatellite ? "🗺️ Map" : "🛰️ Satellite"}</button>
         </div>
         <div class="footer-details">
@@ -483,6 +483,9 @@ function viewHome(){
       </div>
     </div>
   </footer>`;
+}
+function mapSrc(satellite){
+  return `https://www.google.com/maps?q=12.860972,79.132833&z=17${satellite ? "&t=k" : ""}&output=embed`;
 }
 function addressHtml(addr){
   return esc(addr);
@@ -795,7 +798,17 @@ document.addEventListener("click", e=>{
   }
 
   if(e.target.id==="toggleContent"){ S.contentExpanded = !S.contentExpanded; render(); return; }
-  if(e.target.id==="mapToggle"){ S.mapSatellite = !S.mapSatellite; render(); return; }
+  const mapBtn = e.target.closest("#mapToggle");
+  if(mapBtn){
+    // Direct DOM update only — never call render() here, or the whole
+    // page (and the iframe itself) would be torn down and rebuilt just
+    // to change one map's view.
+    S.mapSatellite = !S.mapSatellite;
+    const iframe = mapBtn.parentElement.querySelector("iframe");
+    if(iframe) iframe.src = mapSrc(S.mapSatellite);
+    mapBtn.textContent = S.mapSatellite ? "🗺️ Map" : "🛰️ Satellite";
+    return;
+  }
   const eye = e.target.closest("#lgEye"); if(eye){
     const inp = document.getElementById("lg-p");
     const show = inp.type === "password";
