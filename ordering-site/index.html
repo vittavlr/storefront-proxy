@@ -84,6 +84,7 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .slide{flex:0 0 100vw;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 .slide .wrap{max-width:1400px;margin:0 auto;padding:20px 16px 24px}
 .slide[data-slide="products"] .wrap{padding-bottom:80px}
+.slide[data-slide="home"] .wrap{padding-bottom:0}
 .pagedots{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:25;display:flex;flex-direction:column;gap:7px}
 .pagedots button{width:7px;height:7px;border-radius:50%;background:var(--line);border:1px solid var(--card);padding:0;transition:background .2s var(--ease),height .2s var(--ease)}
 .pagedots button[aria-current="true"]{background:var(--ink);height:20px;border-radius:4px}
@@ -151,13 +152,16 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .site-footer{margin-top:44px;background:var(--line2);color:var(--ink);width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;border-top:1px solid var(--line)}
 .footer-inner{max-width:1400px;margin:0 auto;padding:13px 22px calc(13px + env(safe-area-inset-bottom,0px))}
 .footer-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.9rem}
+.footer-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:stretch}
+@media(max-width:620px){.footer-cols{grid-template-columns:1fr}}
+.footer-details{display:flex;flex-direction:column;justify-content:center;gap:4px}
 .contact-line a{color:var(--ink);text-decoration:none;font-weight:500;white-space:nowrap}
 .contact-line a:hover{text-decoration:underline}
 .contact-line .dot{color:var(--soft)}
-.address-block{margin-top:6px;line-height:1.4;color:var(--soft);justify-content:space-between}
+.address-block{margin-top:4px;line-height:1.4;color:var(--soft)}
 .address-block .pin{display:inline-block;margin-left:4px;font-size:.76rem;font-weight:600;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:1px 9px;color:var(--ink)}
-.map-embed{margin-top:7px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
-.map-embed iframe{width:100%;height:100px;border:0;display:block}
+.map-embed{border-radius:var(--r);overflow:hidden;border:1px solid var(--line);min-height:120px}
+.map-embed iframe{width:100%;height:100%;min-height:120px;border:0;display:block}
 .map-link{display:inline-block;margin-top:4px;color:var(--accent);text-decoration:none;font-size:.84rem;font-weight:600}
 .map-link:hover{text-decoration:underline}
 .footer-bottom{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);justify-content:space-between;color:var(--soft);font-size:.78rem}
@@ -453,21 +457,26 @@ function viewHome(){
   </div>
   <footer class="site-footer">
     <div class="footer-inner">
-      <div class="footer-row contact-line">
-        <a href="tel:${esc(s.phone.replace(/\s/g,""))}">📞 ${esc(s.phone)}</a>
-        <span class="dot">·</span>
-        <a href="mailto:${esc(s.email||"")}">✉️ ${esc(s.email||"")}</a>
-        <span class="dot">·</span>
-        <span>🕒 ${esc(s.hours)}</span>
+      <div class="footer-cols">
+        <div class="map-embed">
+          <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            src="https://www.google.com/maps?q=12.860972,79.132833&z=17&output=embed"></iframe>
+        </div>
+        <div class="footer-details">
+          <div class="footer-row contact-line">
+            <a href="tel:${esc(s.phone.replace(/\s/g,""))}">📞 ${esc(s.phone)}</a>
+            <span class="dot">·</span>
+            <a href="mailto:${esc(s.email||"")}">✉️ ${esc(s.email||"")}</a>
+          </div>
+          <div class="footer-row contact-line">
+            <span>🕒 ${esc(s.hours)}</span>
+          </div>
+          <div class="footer-row address-block">
+            <span>📍 ${addressHtml(s.address)}</span>
+          </div>
+          <a class="map-link" href="https://www.google.com/maps?q=12.860972,79.132833" target="_blank" rel="noopener">Open in Google Maps →</a>
+        </div>
       </div>
-      <div class="footer-row address-block">
-        <span>📍 ${addressHtml(s.address)}</span>
-      </div>
-      <div class="map-embed">
-        <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-          src="https://www.google.com/maps?q=12.860972,79.132833&z=17&output=embed"></iframe>
-      </div>
-      <a class="map-link" href="https://www.google.com/maps?q=12.860972,79.132833" target="_blank" rel="noopener">Open in Google Maps →</a>
       <div class="footer-row footer-bottom">
         <span class="footer-note">Bills are generated and managed separately in our billing system.</span>
         ${S.isAdmin ? "" : '<span class="admin-access" data-tab="login">Admin access</span>'}
