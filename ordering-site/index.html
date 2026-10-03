@@ -9,6 +9,7 @@
   (function(){
     try{
       if(localStorage.getItem("theme") === "dark") document.documentElement.setAttribute("data-theme","dark");
+      if(localStorage.getItem("textSize") === "lg") document.documentElement.setAttribute("data-textsize","lg");
     }catch(e){}
   })();
 </script>
@@ -28,6 +29,7 @@
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
   color-scheme:light;
 }
+html[data-textsize="lg"]{font-size:115%}
 :root[data-theme="dark"]{
   --bg:#12161A; --card:#1B2026; --ink:#EAEDEF; --soft:#8B96A0; --line:#2A3038; --line2:#232830;
   --accent:#5B9BE0; --ok:#4FAE7B; --warn:#E08A4C; --flag:#E5707C;
@@ -49,6 +51,8 @@ p{margin:.35rem 0}
 button{font:inherit;cursor:pointer}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.skip-link{position:absolute;left:-999px;top:0;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:0 0 8px 0;z-index:200;font-weight:600;text-decoration:none}
+.skip-link:focus{left:0}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
 
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;transition:background .35s var(--ease);
@@ -77,6 +81,10 @@ nav button{background:none;border:0;color:var(--soft);padding:6px 12px;border-ra
 nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .theme-toggle{margin-left:8px;flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:.95rem;display:grid;place-items:center;transition:transform .2s var(--ease),background .2s var(--ease)}
 .theme-toggle:hover{transform:rotate(15deg)}
+.floating-contact{position:fixed;right:18px;bottom:calc(90px + env(safe-area-inset-bottom,0px));z-index:35;
+  width:52px;height:52px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;
+  font-size:1.4rem;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:transform .2s var(--ease)}
+.floating-contact:hover{transform:scale(1.08)}
 
 /* full-page horizontal slider */
 .slides-outer{position:relative;overflow:hidden;height:calc(100dvh - var(--headerH,54px) - env(safe-area-inset-top,0px))}
@@ -119,6 +127,12 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .section h2{font-size:1.4rem;max-width:26ch}
 .section .sub{color:var(--soft);max-width:56ch;margin-top:6px}
 
+.trust-row{display:flex;flex-wrap:wrap;gap:10px 20px;justify-content:center;margin-top:26px;padding:14px;background:var(--line2);border-radius:var(--r);font-size:.84rem;color:var(--soft);font-weight:500}
+.featured-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:18px}
+.featured-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:var(--sh);display:flex;flex-direction:column;gap:8px}
+.featured-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.featured-top .name{font-weight:600;font-size:.94rem}
+.featured-price{font-family:Archivo;font-weight:700;font-size:1.05rem}
 .spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:18px}
 .spec{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}
 .spec .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:8px}
@@ -277,6 +291,7 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
 </style>
 </head>
 <body>
+<a href="#slidesOuter" class="skip-link">Skip to main content</a>
 <div id="loader">
   <video id="loaderVideo" autoplay playsinline src="sriamman.mp4"></video>
   <button class="btn ghost small" id="unmuteLoad" style="position:absolute;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-color:rgba(255,255,255,.4);color:#fff">🔇 Tap for sound</button>
@@ -287,10 +302,11 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
   <div class="top-in">
     <button class="brand" data-tab="home" id="brand"></button>
     <nav id="nav"></nav>
+    <button class="theme-toggle" id="textSizeToggle" aria-label="Increase text size" title="Larger text">Aa</button>
     <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode">🌙</button>
   </div>
 </header>
-<div class="slides-outer" id="slidesOuter">
+<div class="slides-outer" id="slidesOuter" tabindex="-1">
   <div class="slides-track" id="slidesTrack"></div>
 </div>
 <div class="pagedots" id="pageDots"></div>
@@ -300,6 +316,8 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
   <button class="btn ghost small" id="trayclear">Clear</button>
   <button class="btn" id="traygo">Review request</button>
 </div></div>
+
+<a class="floating-contact" id="floatingCall" href="tel:" aria-label="Call the shop" title="Call the shop">📞</a>
 
 <script>
 /* ====== CONFIGURE ====== */
@@ -365,6 +383,8 @@ function nav(){
   if(S.isAdmin) tabs.push({k:"admin",label:"Admin"+(S.unseen?`<span class="badge">${S.unseen}</span>`:"")});
   document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.k}" aria-current="${S.view===t.k}">${t.label}</button>`).join("");
   document.getElementById("brand").innerHTML = `${esc(S.SHOP.name)}<small>${esc(S.SHOP.tagline)}</small>`;
+  const fc = document.getElementById("floatingCall");
+  if(fc) fc.href = `tel:${(S.SHOP.phone||"").replace(/\s/g,"")}`;
 }
 const VIEWS = { home:viewHome, products:viewProducts, purchases:viewPurchases, admin:viewAdmin, login:viewLogin };
 function render(){
@@ -425,6 +445,15 @@ function viewHome(){
     </div>
   </section>
 
+  <div class="trust-row">
+    <span>✅ Verified local business</span>
+    <span>🚚 Delivery available</span>
+    <span>💳 Pay on delivery</span>
+    <span>📱 Order anytime online</span>
+  </div>
+
+  ${featuredProductsHtml()}
+
   <section class="section">
     <div class="kicker">Why people shop here</div>
     <h2>The details that don't show up on a price tag</h2>
@@ -459,7 +488,7 @@ function viewHome(){
     <div class="footer-inner">
       <div class="footer-cols">
         <div class="map-embed">
-          <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+          <iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Shop location map"
             src="${mapSrc(S.mapSatellite)}"></iframe>
           <button class="map-toggle" id="mapToggle" type="button">${S.mapSatellite ? "🗺️ Map" : "🛰️ Satellite"}</button>
         </div>
@@ -483,6 +512,25 @@ function viewHome(){
       </div>
     </div>
   </footer>`;
+}
+function featuredProductsHtml(){
+  if(!S.products || !S.products.length) return "";
+  const picks = S.products.filter(p=>p.stock>0).slice(0,4);
+  if(!picks.length) return "";
+  return `<section class="section">
+    <div class="kicker">Popular right now</div>
+    <h2>A few things people are ordering</h2>
+    <div class="featured-grid">
+      ${picks.map(p=>`<div class="featured-card">
+        <div class="featured-top">
+          <span class="name">${esc(p.name)}</span>
+          ${stockBadge(p.stock)}
+        </div>
+        <div class="featured-price">₹${p.price.toFixed(2)} <span class="meta">/${esc(p.unit)}</span></div>
+        <button class="btn small" data-quickadd="${esc(p.id)}">Request this</button>
+      </div>`).join("")}
+    </div>
+  </section>`;
 }
 function mapSrc(satellite){
   return `https://www.google.com/maps?q=12.860972,79.132833&z=17${satellite ? "&t=k" : ""}&output=embed`;
@@ -798,6 +846,15 @@ document.addEventListener("click", e=>{
   }
 
   if(e.target.id==="toggleContent"){ S.contentExpanded = !S.contentExpanded; render(); return; }
+  const quick = e.target.closest("[data-quickadd]");
+  if(quick){
+    const id = quick.dataset.quickadd;
+    const p = (S.products||[]).find(x=>x.id===id);
+    if(p && p.stock>0) S.cart[id] = Math.min(p.stock, (S.cart[id]||0)+1);
+    S.view = "products";
+    render();
+    return;
+  }
   const mapBtn = e.target.closest("#mapToggle");
   if(mapBtn){
     // Direct DOM update only — never call render() here, or the whole
@@ -944,6 +1001,20 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
   applyThemeButton();
 });
 applyThemeButton();
+
+function applyTextSizeButton(){
+  const isLarge = document.documentElement.getAttribute("data-textsize") === "lg";
+  const btn = document.getElementById("textSizeToggle");
+  btn.setAttribute("aria-label", isLarge ? "Decrease text size" : "Increase text size");
+  btn.style.fontWeight = isLarge ? "800" : "600";
+}
+document.getElementById("textSizeToggle").addEventListener("click", ()=>{
+  const isLarge = document.documentElement.getAttribute("data-textsize") === "lg";
+  if(isLarge){ document.documentElement.removeAttribute("data-textsize"); try{ localStorage.setItem("textSize","normal"); }catch(e){} }
+  else{ document.documentElement.setAttribute("data-textsize","lg"); try{ localStorage.setItem("textSize","lg"); }catch(e){} }
+  applyTextSizeButton();
+});
+applyTextSizeButton();
 
 /* ---------- boot ---------- */
 render();
