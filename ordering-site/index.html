@@ -76,6 +76,8 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;backgroun
 .top-in{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px}
 .brand{font-family:Archivo;font-weight:700;font-size:.98rem;line-height:1.15;background:none;border:0;text-align:left;padding:0}
 .brand small{display:block;font-family:Inter;font-weight:400;font-size:.72rem;color:var(--soft)}
+.biz-switcher{font-size:.8rem;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--line2);color:var(--ink);max-width:170px}
+@media(max-width:560px){.biz-switcher{max-width:110px;font-size:.74rem}}
 nav{margin-left:auto;display:flex;gap:2px;background:var(--line2);padding:3px;border-radius:999px}
 nav button{background:none;border:0;color:var(--soft);padding:6px 12px;border-radius:999px;font-size:.84rem;font-weight:500;transition:color .18s var(--ease),background .18s var(--ease)}
 nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
@@ -301,6 +303,7 @@ textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius
 <header class="top">
   <div class="top-in">
     <button class="brand" data-tab="home" id="brand"></button>
+    <select class="biz-switcher" id="bizSwitcher" aria-label="Choose business"></select>
     <nav id="nav"></nav>
     <button class="theme-toggle" id="textSizeToggle" aria-label="Increase text size" title="Larger text">Aa</button>
     <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode">🌙</button>
@@ -339,7 +342,11 @@ const DEFAULT_SHOP = {
 /* ======================== */
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function api(path, opts){ const res = await fetch(`${PROXY_BASE}${path}`, opts); if(!res.ok) throw new Error("failed"); return res.json(); }
+function withBiz(path){
+  const sep = path.includes("?") ? "&" : "?";
+  return S.biz ? `${path}${sep}business=${encodeURIComponent(S.biz)}` : path;
+}
+async function api(path, opts){ const res = await fetch(`${PROXY_BASE}${withBiz(path)}`, opts); if(!res.ok) throw new Error("failed"); return res.json(); }
 function adminHeaders(){ return { "Content-Type":"application/json", "x-admin-password": S.adminPass || "" }; }
 function load(k,f){ try{ return JSON.parse(localStorage.getItem(k)) ?? f; }catch(e){ return f; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
@@ -348,7 +355,8 @@ const S = {
   view:"home", products:null, productsError:false, SHOP:DEFAULT_SHOP,
   cart:{}, showRequestForm:false, isAdmin:false, adminPass:load("adminPass",null), adminError:false,
   requests:null, unseen:0, contentExpanded:false, productsLoading:false,
-  extraChecked:{}, extraTotal:{}, maxNotice:{}, mapSatellite:false
+  extraChecked:{}, extraTotal:{}, maxNotice:{}, mapSatellite:false,
+  businesses:null, biz:load("biz",null)
 };
 
 function stockBadge(stock){
@@ -388,6 +396,13 @@ function nav(){
   if(S.isAdmin) tabs.push({k:"admin",label:"Admin"+(S.unseen?`<span class="badge">${S.unseen}</span>`:"")});
   document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.k}" aria-current="${S.view===t.k}">${t.label}</button>`).join("");
   document.getElementById("brand").innerHTML = `${esc(S.SHOP.name)}<small>${esc(S.SHOP.tagline)}</small>`;
+  const sw = document.getElementById("bizSwitcher");
+  if(S.businesses && S.businesses.length > 1){
+    sw.style.display = "";
+    sw.innerHTML = S.businesses.map(b=>`<option value="${esc(b.key)}" ${b.key===S.biz?"selected":""}>${esc(b.name)}</option>`).join("");
+  } else {
+    sw.style.display = "none";
+  }
   const fc = document.getElementById("floatingCall");
   if(fc){
     const digits = (S.SHOP.phone||"").replace(/\D/g,"");
@@ -804,6 +819,29 @@ async function loadRequests(){
   catch(e){ S.requests = []; }
   render();
 }
+async function loadBusinesses(){
+  try{
+    S.businesses = await api("/businesses");
+    if(!S.biz || !S.businesses.some(b=>b.key===S.biz)){
+      S.biz = (S.businesses.find(b=>b.default) || S.businesses[0] || {}).key || null;
+    }
+  }catch(e){ S.businesses = []; }
+}
+async function switchBusiness(key){
+  if(key === S.biz) return;
+  S.biz = key; save("biz", key);
+  // Everything shown so far belongs to the old business — clear it all
+  // and reload fresh for the one just selected.
+  S.products = null; S.productsError = false;
+  S.requests = null;
+  S.SHOP = DEFAULT_SHOP;
+  clearCart();
+  S.view = "home";
+  render();
+  await loadContent();
+  await loadProducts();
+  render();
+}
 async function loadContent(){
   try{ S.SHOP = Object.assign({}, DEFAULT_SHOP, await api("/content")); }catch(e){}
   render();
@@ -921,6 +959,7 @@ document.addEventListener("input", e=>{
 });
 // ticking / unticking "I need more than what's in stock", and the admin's per-part status dropdowns
 document.addEventListener("change", e=>{
+  if(e.target.id==="bizSwitcher"){ switchBusiness(e.target.value); return; }
   const chk = e.target.closest("[data-extrachk]");
   if(chk){
     const id = chk.dataset.extrachk;
@@ -948,7 +987,7 @@ document.addEventListener("submit", async e=>{
     e.preventDefault();
     const pass = document.getElementById("lg-p").value;
     try{
-      const res = await fetch(`${PROXY_BASE}/requests`, { headers:{ "x-admin-password":pass } });
+      const res = await fetch(`${PROXY_BASE}${withBiz("/requests")}`, { headers:{ "x-admin-password":pass } });
       if(res.ok){ S.isAdmin=true; S.adminPass=pass; save("adminPass",pass); S.view="admin"; S.requests=null; render(); }
       else document.getElementById("loginerr").classList.remove("hide");
     }catch(err){ document.getElementById("loginerr").classList.remove("hide"); }
@@ -1059,9 +1098,10 @@ if(alreadyPlayed){
 }
 
 (async function(){
+  await loadBusinesses();
   await loadContent();
   if(S.adminPass){
-    const res = await fetch(`${PROXY_BASE}/requests`, { headers:{ "x-admin-password":S.adminPass } }).catch(()=>null);
+    const res = await fetch(`${PROXY_BASE}${withBiz("/requests")}`, { headers:{ "x-admin-password":S.adminPass } }).catch(()=>null);
     if(res && res.ok) S.isAdmin = true;
   }
   await loadProducts();
