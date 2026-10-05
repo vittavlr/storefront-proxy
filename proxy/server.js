@@ -1,8 +1,9 @@
 /**
  * Storefront proxy — talks to your EXISTING billing API (read-only) for
- * products and invoices, and separately stores two small things of its
- * own on disk: editable site content, and incoming product requests.
- * Nothing in your billing app's codebase is touched by any of this.
+ * products and invoices, across TWO businesses in that same billing
+ * account, and separately stores each business's own site content and
+ * incoming product requests. Nothing in your billing app's codebase is
+ * touched by any of this.
  */
 require("dotenv").config();
 const express = require("express");
@@ -15,7 +16,7 @@ const crypto = require("crypto");
 const {
   BILLING_API_BASE,
   BILLING_CLIENT_URL,
-  BUSINESS_ID,
+  BUSINESSES,       // "key:businessId:Display Name|key2:businessId2:Display Name 2"
   STAFF_EMAIL,
   STAFF_PASSWORD,
   ALLOWED_ORIGIN,
@@ -23,11 +24,27 @@ const {
   PORT = 4100,
 } = process.env;
 
-for (const [k, v] of Object.entries({ BILLING_API_BASE, BILLING_CLIENT_URL, BUSINESS_ID, STAFF_EMAIL, STAFF_PASSWORD, ALLOWED_ORIGIN, ADMIN_PASSWORD })) {
+for (const [k, v] of Object.entries({ BILLING_API_BASE, BILLING_CLIENT_URL, BUSINESSES, STAFF_EMAIL, STAFF_PASSWORD, ALLOWED_ORIGIN, ADMIN_PASSWORD })) {
   if (!v) { console.error(`Missing required env var: ${k}`); process.exit(1); }
 }
 
+// ---- parse the business list ----
+// Each entry: key:businessId:Display Name — the FIRST one listed is the
+// default/main business shown when nothing else is specified.
+const BUSINESS_LIST = BUSINESSES.split("|").map((entry) => {
+  const [key, businessId, ...nameParts] = entry.split(":");
+  return { key: key.trim(), businessId: businessId.trim(), name: nameParts.join(":").trim() };
+});
+if (!BUSINESS_LIST.length) { console.error("BUSINESSES env var is empty"); process.exit(1); }
+const DEFAULT_BUSINESS_KEY = BUSINESS_LIST[0].key;
+
+function resolveBusiness(key) {
+  return BUSINESS_LIST.find((b) => b.key === key) || BUSINESS_LIST.find((b) => b.key === DEFAULT_BUSINESS_KEY);
+}
+
 // ---- auth against the existing billing API (no changes to it needed) ----
+// One staff login, shared across both businesses (the same staff account
+// must have access to both inside your billing app).
 let session = { accessToken: null, expiresAt: 0 };
 
 async function login() {
@@ -45,7 +62,7 @@ async function token() {
   if (session.accessToken && Date.now() < session.expiresAt) return session.accessToken;
   return login();
 }
-async function billingFetch(path, opts = {}) {
+async function billingFetch(businessId, path, opts = {}) {
   let t = await token();
   let res = await doFetch(t);
   if (res.status === 401) { t = await login(); res = await doFetch(t); }
@@ -54,37 +71,46 @@ async function billingFetch(path, opts = {}) {
   function doFetch(tok) {
     return fetch(`${BILLING_API_BASE}${path}`, {
       ...opts,
-      headers: { ...(opts.headers || {}), Authorization: `Bearer ${tok}`, "x-business-id": BUSINESS_ID },
+      headers: { ...(opts.headers || {}), Authorization: `Bearer ${tok}`, "x-business-id": businessId },
     });
   }
 }
 
-// ---- tiny on-disk JSON storage for content + requests ----
+// ---- tiny on-disk JSON storage for content + requests, ONE SET PER BUSINESS ----
 // NOTE: on most free hosts (Render included) this file resets whenever
 // you redeploy the proxy (new build = fresh disk). It survives normal
 // restarts/sleep-wake fine. If you need edits to survive redeploys too,
 // say so and this can be swapped for a small real database later.
 const DATA_DIR = path.join(__dirname, "data");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-const CONTENT_FILE = path.join(DATA_DIR, "content.json");
-const REQUESTS_FILE = path.join(DATA_DIR, "requests.json");
+function contentFile(key) { return path.join(DATA_DIR, `content-${key}.json`); }
+function requestsFile(key) { return path.join(DATA_DIR, `requests-${key}.json`); }
 
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
 }
 function writeJson(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
-const DEFAULT_CONTENT = {
-  name: "Sri Amman Sugar and Rice Mandi",
-  tagline: "Sugar and Rice at Best Price!",
-  phone: "+91 97516 55590",
-  email: "srivenkateshwara20030@gmail.com",
-  hours: "Mon–Sat 8am–8pm · Sun 8am–1pm",
-  address: "15, Arni Road, Thuthipet, Vellore, Tamilnadu - 632011.",
-};
+function defaultContentFor(biz) {
+  return {
+    name: biz.name,
+    tagline: "",
+    phone: "",
+    email: "",
+    hours: "Mon–Sat 8am–8pm · Sun 8am–1pm",
+    address: "",
+  };
+}
 
 function requireAdmin(req, res, next) {
   if (req.get("x-admin-password") !== ADMIN_PASSWORD) return res.status(401).json({ error: "Wrong admin password" });
+  next();
+}
+
+// Resolves ?business=<key> on every route into req.biz, defaulting to
+// the main business when the query param is missing or unrecognized.
+function withBusiness(req, res, next) {
+  req.biz = resolveBusiness(req.query.business);
   next();
 }
 
@@ -93,6 +119,7 @@ function requireAdmin(req, res, next) {
 const app = express();
 app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
+app.use(withBusiness);
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 200, standardHeaders: true, legacyHeaders: false });
 app.use(limiter);
@@ -101,10 +128,16 @@ const requestLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standard
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// ---- live catalog (unchanged) ----
-app.get("/products", async (_req, res) => {
+// Public list of businesses the storefront can switch between — only
+// the key and display name are exposed, never the real billing ID.
+app.get("/businesses", (_req, res) => {
+  res.json(BUSINESS_LIST.map((b) => ({ key: b.key, name: b.name, default: b.key === DEFAULT_BUSINESS_KEY })));
+});
+
+// ---- live catalog ----
+app.get("/products", async (req, res) => {
   try {
-    const data = await billingFetch(`/api/products?pageSize=100`);
+    const data = await billingFetch(req.biz.businessId, `/api/products?pageSize=100`);
     const products = (data.products || data.items || data).map((p) => ({
       id: p.id, name: p.name, unit: p.customUnitLabel || p.unit,
       price: Number(p.sellingPrice), stock: Number(p.currentStock),
@@ -114,22 +147,22 @@ app.get("/products", async (_req, res) => {
   } catch (err) { console.error(err); res.status(502).json({ error: "Could not load products right now" }); }
 });
 
-// ---- purchase history by phone (unchanged) ----
+// ---- purchase history by phone ----
 app.get("/invoices", async (req, res) => {
   try {
     const digits = String(req.query.phone || "").replace(/\D/g, "");
     const last10 = digits.slice(-10);
     if (last10.length < 6) return res.json([]);
-    const customerData = await billingFetch(`/api/customers?search=${encodeURIComponent(last10)}&pageSize=50`);
+    const customerData = await billingFetch(req.biz.businessId, `/api/customers?search=${encodeURIComponent(last10)}&pageSize=50`);
     const customers = (customerData.customers || customerData.items || customerData)
       .filter((c) => (c.phone || "").replace(/\D/g, "").endsWith(last10));
     const results = [];
     for (const c of customers) {
-      const invData = await billingFetch(`/api/invoices?customerId=${c.id}&pageSize=50`);
+      const invData = await billingFetch(req.biz.businessId, `/api/invoices?customerId=${c.id}&pageSize=50`);
       for (const inv of invData.invoices || []) {
         if (inv.status === "DRAFT") continue;
         let shareUrl = null;
-        try { const share = await billingFetch(`/api/invoices/${inv.id}/share`, { method: "POST" }); shareUrl = `${BILLING_CLIENT_URL}${share.path}`; } catch {}
+        try { const share = await billingFetch(req.biz.businessId, `/api/invoices/${inv.id}/share`, { method: "POST" }); shareUrl = `${BILLING_CLIENT_URL}${share.path}`; } catch {}
         results.push({ invoiceNumber: inv.invoiceNumber, date: inv.invoiceDate, total: Number(inv.total), balanceDue: Number(inv.balanceDue), status: inv.status, shareUrl });
       }
     }
@@ -138,21 +171,21 @@ app.get("/invoices", async (req, res) => {
   } catch (err) { console.error(err); res.status(502).json({ error: "Could not look that up right now" }); }
 });
 
-// ---- editable site content ----
-app.get("/content", (_req, res) => res.json(readJson(CONTENT_FILE, DEFAULT_CONTENT)));
+// ---- editable site content (per business) ----
+app.get("/content", (req, res) => res.json(readJson(contentFile(req.biz.key), defaultContentFor(req.biz))));
 app.post("/content", requireAdmin, (req, res) => {
-  const merged = { ...DEFAULT_CONTENT, ...readJson(CONTENT_FILE, {}), ...req.body };
-  writeJson(CONTENT_FILE, merged);
+  const merged = { ...defaultContentFor(req.biz), ...readJson(contentFile(req.biz.key), {}), ...req.body };
+  writeJson(contentFile(req.biz.key), merged);
   res.json(merged);
 });
 
-// ---- product requests (customer submits, admin reviews) ----
+// ---- product requests (customer submits, admin reviews) — per business ----
 app.post("/requests", requestLimiter, (req, res) => {
   const { name, phone, address, notes, items } = req.body || {};
   if (!name || !phone || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: "name, phone and at least one item are required" });
   }
-  const all = readJson(REQUESTS_FILE, []);
+  const all = readJson(requestsFile(req.biz.key), []);
   const entry = {
     id: crypto.randomUUID(),
     code: Math.random().toString(36).slice(2, 6).toUpperCase() + String(Date.now()).slice(-2),
@@ -178,11 +211,11 @@ app.post("/requests", requestLimiter, (req, res) => {
     return res.status(400).json({ error: "at least one item with a quantity is required" });
   }
   all.unshift(entry);
-  writeJson(REQUESTS_FILE, all.slice(0, 500));
+  writeJson(requestsFile(req.biz.key), all.slice(0, 500));
   res.status(201).json({ code: entry.code });
 });
 
-app.get("/requests", requireAdmin, (_req, res) => res.json(readJson(REQUESTS_FILE, [])));
+app.get("/requests", requireAdmin, (req, res) => res.json(readJson(requestsFile(req.biz.key), [])));
 
 // Public: a customer looking up their own requests by phone number —
 // same trust model as the /invoices lookup (matches last 10 digits).
@@ -191,7 +224,7 @@ app.get("/my-requests", (req, res) => {
   const digits = String(req.query.phone || "").replace(/\D/g, "");
   const last10 = digits.slice(-10);
   if (last10.length < 6) return res.json([]);
-  const all = readJson(REQUESTS_FILE, []);
+  const all = readJson(requestsFile(req.biz.key), []);
   const mine = all
     .filter((r) => (r.phone || "").replace(/\D/g, "").endsWith(last10))
     .map((r) => ({ id: r.id, code: r.code, items: r.items, status: r.status, createdAt: r.createdAt }))
@@ -207,7 +240,7 @@ const ALLOWED_STATUS = ["new", "seen", "confirmed", "done", "cancelled"];
 //        part "stock" = the quantity taken from stock
 //        part "extra" = the extra quantity beyond stock
 app.patch("/requests/:id", requireAdmin, (req, res) => {
-  const all = readJson(REQUESTS_FILE, []);
+  const all = readJson(requestsFile(req.biz.key), []);
   const idx = all.findIndex((r) => r.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "Not found" });
 
@@ -223,16 +256,16 @@ app.patch("/requests/:id", requireAdmin, (req, res) => {
   } else {
     all[idx].status = status;
   }
-  writeJson(REQUESTS_FILE, all);
+  writeJson(requestsFile(req.biz.key), all);
   res.json(all[idx]);
 });
 
 app.delete("/requests/:id", requireAdmin, (req, res) => {
-  const all = readJson(REQUESTS_FILE, []);
+  const all = readJson(requestsFile(req.biz.key), []);
   const next = all.filter((r) => r.id !== req.params.id);
   if (next.length === all.length) return res.status(404).json({ error: "Not found" });
-  writeJson(REQUESTS_FILE, next);
+  writeJson(requestsFile(req.biz.key), next);
   res.json({ deleted: true });
 });
 
-app.listen(PORT, () => console.log(`Storefront proxy listening on :${PORT}`));
+app.listen(PORT, () => console.log(`Storefront proxy listening on :${PORT} — businesses: ${BUSINESS_LIST.map(b=>b.key).join(", ")}`));
