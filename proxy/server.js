@@ -91,14 +91,33 @@ function readJson(file, fallback) {
 }
 function writeJson(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
+// Sensible starting content per business, shown until the owner edits it
+// from Admin. Known businesses get real contact details; anything else
+// (a business added later) gets a plain, honest placeholder instead of
+// a blank footer.
+const KNOWN_CONTENT = {
+  rice: {
+    tagline: "Sugar and Rice at Best Price!",
+    phone: "+91 97516 55590",
+    email: "srivenkateshwara20030@gmail.com",
+    address: "15, Arni Road, Thuthipet, Vellore, Tamilnadu - 632011.",
+  },
+  gas: {
+    tagline: "Reliable gas cylinder delivery",
+    phone: "+91 97516 55590",
+    email: "srivenkateshwara20030@gmail.com",
+    address: "15, Arni Road, Thuthipet, Vellore, Tamilnadu - 632011.",
+  },
+};
 function defaultContentFor(biz) {
+  const known = KNOWN_CONTENT[biz.key] || {};
   return {
     name: biz.name,
-    tagline: "",
-    phone: "",
-    email: "",
+    tagline: known.tagline || "",
+    phone: known.phone || "",
+    email: known.email || "",
     hours: "Mon–Sat 8am–8pm · Sun 8am–1pm",
-    address: "",
+    address: known.address || "",
   };
 }
 
