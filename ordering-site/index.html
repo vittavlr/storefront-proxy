@@ -78,9 +78,24 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;backgroun
 .brand small{display:block;font-family:Inter;font-weight:400;font-size:.72rem;color:var(--soft)}
 .biz-switcher{font-size:.8rem;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--line2);color:var(--ink);max-width:170px}
 @media(max-width:560px){.biz-switcher{max-width:110px;font-size:.74rem}}
-nav{margin-left:auto;display:flex;gap:2px;background:var(--line2);padding:3px;border-radius:999px}
-nav button{background:none;border:0;color:var(--soft);padding:6px 12px;border-radius:999px;font-size:.84rem;font-weight:500;transition:color .18s var(--ease),background .18s var(--ease)}
-nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+/* Spotlight navbar — a vanilla port of the "SpotlightNavbar" component:
+   a soft light follows the pointer along the bar, and a glowing line
+   sits under the active tab. Both are positioned by the CSS variables
+   --spotlight-x / --ambience-x, which the JS below springs around. */
+nav{--spotlight-color:rgba(0,0,0,.08);--ambience-color:rgba(0,0,0,.8);
+  position:relative;overflow:hidden;margin-left:auto;display:flex;gap:0;align-items:center;
+  background:var(--line2);border:1px solid var(--line);padding:2px 6px;border-radius:999px}
+:root[data-theme="dark"] nav{--spotlight-color:rgba(255,255,255,.15);--ambience-color:rgba(255,255,255,1)}
+nav::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity .3s var(--ease);
+  background:radial-gradient(120px circle at var(--spotlight-x,50%) 100%,var(--spotlight-color) 0%,transparent 50%)}
+nav.spot-on::before{opacity:1}
+nav::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:2px;z-index:2;pointer-events:none;
+  background:radial-gradient(60px circle at var(--ambience-x,50%) 0%,var(--ambience-color) 0%,transparent 100%)}
+nav.no-active::after{opacity:0}
+nav button{position:relative;z-index:10;background:none;border:0;color:var(--soft);padding:9px 14px;border-radius:999px;font-size:.84rem;font-weight:500;transition:color .2s var(--ease)}
+nav button:hover{color:var(--ink)}
+nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+nav button[aria-current="true"]{color:var(--ink)}
 .theme-toggle{margin-left:8px;flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:.95rem;display:grid;place-items:center;transition:transform .2s var(--ease),background .2s var(--ease)}
 .theme-toggle:hover{transform:rotate(15deg)}
 
@@ -135,9 +150,9 @@ nav button[aria-current="true"]{background:var(--card);color:var(--ink);box-shad
 .btn.small{padding:6px 11px;font-size:.82rem;font-weight:500}
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-top:22px}
 .stat b{display:block;font-family:Archivo;font-size:1.4rem;font-weight:700}
+.countup{font-variant-numeric:tabular-nums}
 .stat span{font-size:.78rem;color:var(--soft)}
 .stat-loading{grid-column:1/-1;display:flex;align-items:center;gap:12px}
-.stat-loading .loadmsg{font-size:.86rem}
 .loademoji.mini{font-size:1.5rem;gap:8px;margin-bottom:0;justify-content:flex-start}
 
 .section{margin-top:38px}
@@ -252,6 +267,11 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .loademoji span:nth-child(3){animation-delay:.3s}
 @keyframes sway{0%,100%{transform:rotate(-9deg) translateY(0)}50%{transform:rotate(9deg) translateY(-7px)}}
 .loadmsg{color:var(--soft);font-size:.92rem;min-height:1.3em;transition:opacity .3s var(--ease)}
+/* WarpText loading message: a small canvas the shader draws the text into */
+.warp-load{position:relative;display:block;width:min(100%,380px);height:56px;margin:0 auto;color:var(--ink);font-size:1.05rem;font-weight:600;letter-spacing:0;overflow:hidden;isolation:isolate}
+.warp-load canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.warp-load .warp-fallback{display:flex;height:100%;align-items:center;justify-content:center;text-align:center}
+.stat-loading .warp-load{margin:0;flex:1 1 auto;height:44px;min-width:0}
 
 /* 3D pyramid loader — adapted from a uiverse.io loader, scaled down and
    retoned to the site's palette instead of the original purple/pink/teal */
@@ -409,6 +429,34 @@ function adminHeaders(){ return { "Content-Type":"application/json", "x-admin-pa
 function load(k,f){ try{ return JSON.parse(localStorage.getItem(k)) ?? f; }catch(e){ return f; } }
 function save(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 
+/* ---------- shared motion helpers (used by the navbar spotlight and the count-up) ---------- */
+const reduceMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+function prefersReducedMotion(){ return !!(reduceMotionQuery && reduceMotionQuery.matches); }
+
+// A small spring animator — the vanilla stand-in for framer-motion's
+// animate(from, to, { type:"spring", stiffness, damping }).
+function springAnimate(from, to, opts){
+  const { stiffness=200, damping=20, mass=1, precision=0.01, onUpdate, onDone } = opts;
+  let x = from, v = 0, raf = 0, last = null, stopped = false;
+  function step(now){
+    if(stopped) return;
+    if(last === null) last = now;
+    const dt = Math.min((now - last) / 1000, 1/30); last = now;
+    const sub = 4, h = dt / sub;                       // a few sub-steps keeps it stable
+    for(let i=0;i<sub;i++){
+      const a = (-stiffness * (x - to) - damping * v) / mass;
+      v += a * h; x += v * h;
+    }
+    if(Math.abs(x - to) < precision && Math.abs(v) < precision * 2){
+      x = to; onUpdate(x); if(onDone) onDone(); return;
+    }
+    onUpdate(x);
+    raf = requestAnimationFrame(step);
+  }
+  raf = requestAnimationFrame(step);
+  return { cancel(){ stopped = true; cancelAnimationFrame(raf); } };
+}
+
 const S = {
   view:"home", products:null, productsError:false, SHOP:DEFAULT_SHOP,
   cart:{}, showRequestForm:false, isAdmin:false, adminPass:load("adminPass",null), adminError:false,
@@ -417,10 +465,312 @@ const S = {
   businesses:null, biz:load("biz",null)
 };
 
-function stockBadge(stock){
+/* ---------- count-up numbers (vanilla port of the "CountUp" component) ----------
+   Numbers count up from 0 the first time they scroll into view. Progress is
+   remembered per key, so the page's frequent re-renders never restart a count
+   that's already running or finished. */
+const countState = {};   // key -> { to, value, status: "idle" | "run" | "done" }
+function decimalsOf(n){
+  const s = String(n);
+  if(s.indexOf(".") >= 0){ const d = s.split(".")[1]; if(parseInt(d,10) !== 0) return d.length; }
+  return 0;
+}
+function fmtCount(n, dec){ return dec ? Number(n).toFixed(dec) : String(Math.round(n)); }
+function countHtml(key, to){
+  const st = countState[key];
+  const shown = (st && st.to === to) ? st.value : 0;
+  return `<span class="countup" data-key="${esc(key)}" data-to="${to}" data-dec="${decimalsOf(to)}">${fmtCount(shown, decimalsOf(to))}</span>`;
+}
+function setCountText(key, text){
+  document.querySelectorAll(".countup").forEach(el=>{ if(el.dataset.key === key) el.textContent = text; });
+}
+function startCount(key, to, dec){
+  const st = countState[key];
+  if(!st || st.status !== "idle") return;
+  st.status = "run";
+  const duration = 1.4;                                   // seconds until it has fully settled
+  const w = 7.6 / duration;                               // critically damped: smooth, no overshoot, lands on time
+  springAnimate(0, to, {
+    stiffness: w * w, damping: 2 * w, precision: Math.max(0.004, Math.pow(10, -dec) / 2),
+    onUpdate: v=>{ st.value = v; setCountText(key, fmtCount(v, dec)); },
+    onDone: ()=>{ st.value = to; st.status = "done"; setCountText(key, fmtCount(to, dec)); }
+  });
+}
+let countObserver = null;
+function runCountUps(){
+  document.querySelectorAll(".countup").forEach(el=>{
+    const key = el.dataset.key, to = parseFloat(el.dataset.to), dec = parseInt(el.dataset.dec,10) || 0;
+    let st = countState[key];
+    if(!st || st.to !== to) st = countState[key] = { to, value:0, status:"idle" };   // new number → count again
+    if(st.status !== "idle") return;                       // running or finished: element already shows the right text
+    if(prefersReducedMotion() || !window.IntersectionObserver){
+      st.value = to; st.status = "done"; setCountText(key, fmtCount(to, dec)); return;
+    }
+    if(!countObserver){
+      countObserver = new IntersectionObserver(entries=>{
+        entries.forEach(en=>{
+          if(!en.isIntersecting) return;
+          countObserver.unobserve(en.target);
+          const k = en.target.dataset.key;
+          if(countState[k]) startCount(k, countState[k].to, parseInt(en.target.dataset.dec,10) || 0);
+        });
+      });
+    }
+    countObserver.observe(el);
+  });
+}
+
+/* ---------- WarpText (vanilla WebGL2 port of the "WarpText" component) ----------
+   Draws a line of text onto a canvas, uploads it as a texture and warps it in a
+   fragment shader: slow drifting noise, a lens/ripple that follows the pointer
+   (and wanders by itself when nobody is pointing), plus a slight colour split.
+   If WebGL2 isn't available the plain text underneath is simply left visible. */
+const WARP_VERT = `#version 300 es
+out vec2 vUv;
+void main(){
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+const WARP_FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2 uRes;
+uniform vec2 uPointer;
+uniform float uPointerActive;
+uniform float uTime;
+uniform float uWarp;
+uniform float uScale;
+uniform float uSpeed;
+uniform float uInfluence;
+uniform float uStrength;
+uniform float uRefraction;
+uniform float uRipple;
+uniform float uMotion;
+in vec2 vUv;
+out vec4 outColor;
+
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for(int i = 0; i < 4; i++){ v += a * vnoise(p); p *= 2.02; a *= 0.5; }
+  return v;
+}
+vec4 tex(vec2 uv){
+  if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
+  return texture(uTex, uv);
+}
+void main(){
+  vec2 uv = vUv;
+  float aspect = uRes.x / max(uRes.y, 1.0);
+  float t = uTime * uSpeed;
+  float sc = max(uScale, 0.001);
+
+  // slow ambient wobble
+  vec2 drift = vec2(t * 0.055, -t * 0.045);
+  float n1 = fbm(uv * sc * 3.1 + drift);
+  float n2 = fbm((uv + 19.17) * sc * 3.4 - drift.yx);
+  vec2 ambient = (vec2(n1, n2) - 0.5) * uWarp * 0.045 * uMotion;
+
+  // lens + ripple around the pointer
+  vec2 d = uv - uPointer;
+  vec2 ad = vec2(d.x * aspect, d.y);
+  float dist = length(ad);
+  float radius = max(uInfluence, 0.001);
+  float q = clamp(dist / radius, 0.0, 1.0);
+  float lens = smoothstep(radius, 0.0, dist) * uPointerActive;
+  float bulge = q * (1.0 - q) * (1.0 - q) * 6.75 * uPointerActive;
+  vec2 dir = dist > 0.0001 ? vec2(ad.x / aspect, ad.y) / dist : vec2(0.0);
+  float wave = sin(dist * 28.0 - t * 4.2) * 0.5 + 0.5;
+  float ring = (wave - 0.5) * uRipple;
+  vec2 pw = -dir * bulge * uStrength * 0.045;
+  pw += dir * ring * bulge * uStrength * 0.016;
+
+  vec2 disp = uv + ambient + pw;
+  vec2 sd = ambient + pw;
+  float sl = length(sd);
+  sd = sl > 0.00001 ? sd / sl : vec2(0.7071);
+  vec2 split = sd * uRefraction * 0.16 * (0.35 + lens * 1.65);
+
+  vec4 base = tex(disp);
+  vec4 s1 = tex(disp + split);
+  vec4 s2 = tex(disp - split);
+  float alpha = max(max(s1.a, base.a), s2.a);
+  vec3 col = vec3(s1.r, base.g, s2.b) + lens * base.a * 0.055;
+  outColor = vec4(min(col, vec3(alpha)), alpha);   // premultiplied
+}`;
+
+function warpCompile(gl, type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src); gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){ console.warn("WarpText shader:", gl.getShaderInfoLog(sh)); return null; }
+  return sh;
+}
+// Render the text into an offscreen 2D canvas using the container's own font/colour
+function warpTextCanvas(container, w, h, dpr, text){
+  const cs = getComputedStyle(container);
+  let px = parseFloat(cs.fontSize) || 16;
+  const family = cs.fontFamily || "sans-serif", weight = cs.fontWeight || "600", color = cs.color || "#000";
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.floor(w * dpr)); c.height = Math.max(1, Math.floor(h * dpr));
+  const ctx = c.getContext("2d"); if(!ctx) return c;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = color;
+  const lines = String(text || "").split("\n");
+  const setFont = ()=>{ ctx.font = `${weight} ${px}px ${family}`; };
+  setFont();
+  const widest = Math.max(1, ...lines.map(l=>ctx.measureText(l).width));
+  const lh = px * 1.15;
+  const fit = Math.min(1, (w * 0.92) / widest, (h * 0.82) / (lh * lines.length));
+  if(fit < 1){ px *= fit; setFont(); }
+  const lineH = px * 1.15, startY = h / 2 - (lineH * (lines.length - 1)) / 2;
+  lines.forEach((l, i)=>ctx.fillText(l, w / 2, startY + i * lineH));
+  return c;
+}
+
+function createWarpText(container, initialText, opts){
+  opts = Object.assign({ warp:0.3, scale:1.7, speed:0.55, influence:0.5, strength:0.5, refraction:0.03, ripple:true }, opts || {});
+  if(!window.WebGL2RenderingContext) return null;
+  const canvas = document.createElement("canvas");
+  let gl = null;
+  try{ gl = canvas.getContext("webgl2", { alpha:true, premultipliedAlpha:true, antialias:true }); }catch(e){}
+  if(!gl) return null;
+
+  const vs = warpCompile(gl, gl.VERTEX_SHADER, WARP_VERT), fs = warpCompile(gl, gl.FRAGMENT_SHADER, WARP_FRAG);
+  if(!vs || !fs) return null;
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){ console.warn("WarpText link:", gl.getProgramInfoLog(prog)); return null; }
+  gl.useProgram(prog);
+  const U = {};
+  ["uTex","uRes","uPointer","uPointerActive","uTime","uWarp","uScale","uSpeed","uInfluence","uStrength","uRefraction","uRipple","uMotion"]
+    .forEach(n=>{ U[n] = gl.getUniformLocation(prog, n); });
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(U.uTex, 0);
+  gl.uniform1f(U.uWarp, opts.warp); gl.uniform1f(U.uScale, opts.scale); gl.uniform1f(U.uSpeed, opts.speed);
+  gl.uniform1f(U.uInfluence, opts.influence); gl.uniform1f(U.uStrength, opts.strength);
+  gl.uniform1f(U.uRefraction, opts.refraction); gl.uniform1f(U.uRipple, opts.ripple ? 1 : 0);
+  gl.clearColor(0, 0, 0, 0);
+
+  let text = initialText, disposed = false, lost = false, visible = true, pageVisible = !document.hidden, raf = 0;
+  let reduce = prefersReducedMotion();
+  const pointer = { x:0.5, y:0.5, tx:0.5, ty:0.5, active:0, target:0 };
+  const t0 = performance.now();
+  const fallback = container.querySelector(".warp-fallback");
+
+  container.setAttribute("role", "img");
+  container.setAttribute("aria-label", text);
+  container.appendChild(canvas);
+  canvas.setAttribute("aria-hidden", "true");
+
+  const draw = ()=>{ if(disposed || lost) return; gl.viewport(0, 0, canvas.width, canvas.height); gl.drawArrays(gl.TRIANGLES, 0, 3); };
+  const rasterize = ()=>{
+    if(disposed || lost) return;
+    const r = container.getBoundingClientRect(); if(r.width <= 0 || r.height <= 0) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const tc = warpTextCanvas(container, r.width, r.height, dpr, text);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tc);
+    if(fallback) fallback.style.display = "none";           // the canvas takes over from the plain text
+    draw();
+  };
+  const resize = ()=>{
+    if(disposed || lost) return;
+    const r = container.getBoundingClientRect(); if(r.width <= 0 || r.height <= 0) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(r.width * dpr)); canvas.height = Math.max(1, Math.round(r.height * dpr));
+    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+    rasterize();
+  };
+  const loop = now=>{
+    if(disposed || lost) return;
+    const el = (now - t0) * 0.001;
+    const idleX = 0.5 + Math.sin(el * 0.33) * 0.12, idleY = 0.5 + Math.cos(el * 0.27) * 0.1;
+    const tx = pointer.target > 0 ? pointer.tx : idleX, ty = pointer.target > 0 ? pointer.ty : idleY;
+    const damp = pointer.target > 0 ? 0.12 : 0.035;
+    pointer.x += (tx - pointer.x) * damp; pointer.y += (ty - pointer.y) * damp;
+    pointer.active += ((pointer.target > 0 ? 1 : 0.18) - pointer.active) * 0.06;
+    gl.uniform2f(U.uPointer, pointer.x, pointer.y);
+    gl.uniform1f(U.uPointerActive, pointer.active);
+    gl.uniform1f(U.uTime, el);
+    gl.uniform1f(U.uMotion, 1);
+    draw();
+    raf = requestAnimationFrame(loop);
+  };
+  const startLoop = ()=>{
+    if(reduce){                                              // reduced motion: one still frame, no animation
+      gl.uniform1f(U.uMotion, 0); gl.uniform1f(U.uTime, 0); gl.uniform1f(U.uPointerActive, 0.2); draw(); return;
+    }
+    if(!raf && visible && pageVisible) raf = requestAnimationFrame(loop);
+  };
+  const stopLoop = ()=>{ if(raf){ cancelAnimationFrame(raf); raf = 0; } };
+
+  const onMove = e=>{
+    if(e.pointerType === "touch") return;
+    const r = canvas.getBoundingClientRect(); if(r.width <= 0 || r.height <= 0) return;
+    pointer.tx = (e.clientX - r.left) / r.width; pointer.ty = 1 - (e.clientY - r.top) / r.height; pointer.target = 1;
+  };
+  const onLeave = ()=>{ pointer.target = 0; };
+  const onLost = e=>{ e.preventDefault(); lost = true; stopLoop(); if(fallback) fallback.style.display = ""; canvas.remove(); };
+  const onVis = ()=>{ pageVisible = !document.hidden; pageVisible ? startLoop() : stopLoop(); };
+  canvas.addEventListener("pointermove", onMove);
+  canvas.addEventListener("pointerleave", onLeave);
+  canvas.addEventListener("webglcontextlost", onLost, false);
+  document.addEventListener("visibilitychange", onVis);
+  const ro = window.ResizeObserver ? new ResizeObserver(resize) : null; if(ro) ro.observe(container);
+  const io = window.IntersectionObserver ? new IntersectionObserver(([en])=>{ visible = en.isIntersecting; visible ? startLoop() : stopLoop(); }) : null;
+  if(io) io.observe(container);
+
+  resize(); startLoop();
+
+  return {
+    setText(t){ text = t; container.setAttribute("aria-label", t); rasterize(); },
+    refresh(){ reduce = prefersReducedMotion(); rasterize(); },
+    destroy(){
+      disposed = true; stopLoop();
+      if(ro) ro.disconnect(); if(io) io.disconnect();
+      document.removeEventListener("visibilitychange", onVis);
+      canvas.removeEventListener("pointermove", onMove); canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      try{ gl.deleteTexture(tex); gl.deleteProgram(prog); const x = gl.getExtension("WEBGL_lose_context"); if(x) x.loseContext(); }catch(e){}
+      canvas.remove();
+    }
+  };
+}
+
+// Every render() rebuilds the page's HTML, so loaders are re-created often: attach a
+// WarpText to any new ".warp-load" element and clean up the ones that were thrown away.
+const warpInstances = new Map();
+function mountWarpTexts(){
+  warpInstances.forEach((inst, el)=>{ if(!el.isConnected){ inst.destroy(); warpInstances.delete(el); } });
+  document.querySelectorAll(".warp-load").forEach(el=>{
+    if(warpInstances.has(el) || el.dataset.warp === "failed") return;
+    const text = el.dataset.text || el.textContent.trim();
+    const inst = createWarpText(el, text);
+    if(inst) warpInstances.set(el, inst); else el.dataset.warp = "failed";
+  });
+}
+function refreshWarpTexts(){ warpInstances.forEach(inst=>inst.refresh()); }
+
+function stockBadge(stock, key){
   if(stock<=0) return `<span class="stock out">Out of stock</span>`;
-  if(stock<=5) return `<span class="stock low">${stock} left</span>`;
-  return `<span class="stock ok">${stock} in stock</span>`;
+  const n = key ? countHtml(key, stock) : String(stock);
+  if(stock<=5) return `<span class="stock low">${n} left</span>`;
+  return `<span class="stock ok">${n} in stock</span>`;
 }
 function skeleton(n){ return Array.from({length:n},()=>'<div class="sk"></div>').join(""); }
 const LOAD_MESSAGES = [
@@ -440,7 +790,12 @@ function startLoadMessages(){
     const text = LOAD_MESSAGES[loadMsgIndex];
     els.forEach(el=>{
       el.style.opacity = 0;
-      setTimeout(()=>{ if(el.isConnected){ el.textContent = text; el.style.opacity = 1; } }, 250);
+      setTimeout(()=>{
+        if(!el.isConnected) return;
+        const inst = warpInstances.get(el);
+        if(inst) inst.setText(text); else el.textContent = text;   // warped canvas text, or plain text if WebGL isn't available
+        el.style.opacity = 1;
+      }, 250);
     });
   }, 2200);
 }
@@ -449,10 +804,68 @@ function cartCount(){ return Object.values(S.cart).reduce((a,b)=>a+b,0); }
 
 /* ---------- slides ---------- */
 function slideOrder(){ const o=["home","products","purchases"]; if(S.isAdmin) o.push("admin"); else o.push("login"); return o; }
+/* ---------- spotlight navbar behaviour ---------- */
+const navFx = {
+  spot:{ x:0, target:null, anim:null },   // follows the pointer
+  amb: { x:0, target:null, anim:null },   // sits under the active tab
+  ready:false, hovering:false
+};
+function navEl(){ return document.getElementById("nav"); }
+function navItemCenter(el){
+  const n = navEl().getBoundingClientRect(), r = el.getBoundingClientRect();
+  return r.left - n.left + r.width / 2;
+}
+function navSetVar(slot, cssVar, v){ navFx[slot].x = v; navEl().style.setProperty(cssVar, v + "px"); }
+function navMove(slot, cssVar, target, animated){
+  const s = navFx[slot];
+  if(s.target !== null && Math.abs(s.target - target) < 0.5) return;   // already heading there
+  s.target = target;
+  if(s.anim){ s.anim.cancel(); s.anim = null; }
+  if(!animated || prefersReducedMotion()){ navSetVar(slot, cssVar, target); return; }
+  s.anim = springAnimate(s.x, target, { stiffness:200, damping:20, precision:0.05,
+    onUpdate:v=>navSetVar(slot, cssVar, v), onDone:()=>{ s.anim = null; } });
+}
+// Re-aim the glow line under whichever tab is active (called after every nav render / resize)
+function syncNavAmbience(){
+  const nav = navEl(); if(!nav) return;
+  const active = nav.querySelector('button[aria-current="true"]');
+  nav.classList.toggle("no-active", !active);
+  if(!active) return;
+  const t = navItemCenter(active);
+  if(!navFx.ready){
+    navFx.ready = true;
+    navMove("amb", "--ambience-x", t, false);
+    navMove("spot", "--spotlight-x", t, false);
+    return;
+  }
+  navMove("amb", "--ambience-x", t, true);
+  if(!navFx.hovering) navMove("spot", "--spotlight-x", t, true);
+}
+function initNavSpotlight(){
+  const nav = navEl();
+  nav.addEventListener("mousemove", e=>{
+    navFx.hovering = true;
+    nav.classList.add("spot-on");
+    const x = e.clientX - nav.getBoundingClientRect().left;
+    if(navFx.spot.anim){ navFx.spot.anim.cancel(); navFx.spot.anim = null; }
+    navFx.spot.target = x;                 // direct update: no spring, so it feels snappy
+    navSetVar("spot", "--spotlight-x", x);
+  });
+  nav.addEventListener("mouseleave", ()=>{
+    navFx.hovering = false;
+    nav.classList.remove("spot-on");
+    const active = nav.querySelector('button[aria-current="true"]');
+    if(active) navMove("spot", "--spotlight-x", navItemCenter(active), true);   // spring back to the active tab
+  });
+  if(window.ResizeObserver) new ResizeObserver(()=>syncNavAmbience()).observe(nav);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ navFx.amb.target = null; navFx.spot.target = null; syncNavAmbience(); });
+}
+
 function nav(){
   const tabs=[{k:"home",label:"Home"},{k:"products",label:"Products"},{k:"purchases",label:"My purchases"}];
   if(S.isAdmin) tabs.push({k:"admin",label:"Admin"+(S.unseen?`<span class="badge">${S.unseen}</span>`:"")});
   document.getElementById("nav").innerHTML = tabs.map(t=>`<button data-tab="${t.k}" aria-current="${S.view===t.k}">${t.label}</button>`).join("");
+  syncNavAmbience();
   document.getElementById("brand").innerHTML = `${esc(S.SHOP.name)}<small>${esc(S.SHOP.tagline)}</small>`;
   const sw = document.getElementById("bizSwitcher");
   if(S.businesses && S.businesses.length > 1){
@@ -490,6 +903,8 @@ function render(){
   const showTray = cartCount()>0 && S.view==="products" && !S.showRequestForm;
   document.getElementById("tray").classList.toggle("on", showTray);
   if(showTray) document.getElementById("traysum").textContent = `${cartCount()} item${cartCount()===1?"":"s"} selected`;
+  runCountUps();
+  mountWarpTexts();
 }
 
 function viewHome(){
@@ -520,10 +935,10 @@ function viewHome(){
       ${(S.products===null && !S.productsError) ? `
         <div class="stat-loading">
           <div class="pyramid-loader" style="margin:0;transform:scale(.55) rotateX(-20deg)"><div class="pyramid-wrapper"><span class="side side1"></span><span class="side side2"></span><span class="side side3"></span><span class="side side4"></span><span class="pshadow"></span></div></div>
-          <span class="loadmsg rot">${LOAD_MESSAGES[0]}</span>
+          <div class="loadmsg rot warp-load" data-text="${LOAD_MESSAGES[loadMsgIndex]}"><span class="warp-fallback">${LOAD_MESSAGES[loadMsgIndex]}</span></div>
         </div>` : `
-        <div class="stat"><b id="statCount">${S.products ? S.products.length : "–"}</b><span>products listed</span></div>
-        <div class="stat"><b>${S.products ? S.products.filter(p=>p.stock>0).length : "–"}</b><span>in stock right now</span></div>`}
+        <div class="stat"><b id="statCount">${S.products ? countHtml("stat:count:"+S.biz, S.products.length) : "–"}</b><span>products listed</span></div>
+        <div class="stat"><b>${S.products ? countHtml("stat:instock:"+S.biz, S.products.filter(p=>p.stock>0).length) : "–"}</b><span>in stock right now</span></div>`}
     </div>
   </section>
 
@@ -606,7 +1021,7 @@ function featuredProductsHtml(){
       ${picks.map(p=>`<div class="featured-card">
         <div class="featured-top">
           <span class="name">${esc(p.name)}</span>
-          ${stockBadge(p.stock)}
+          ${stockBadge(p.stock, 'stock:'+S.biz+':'+p.id)}
         </div>
         <div class="featured-price">₹${p.price.toFixed(2)} <span class="meta">/${esc(p.unit)}</span></div>
         <button class="btn small" data-quickadd="${esc(p.id)}">Request this</button>
@@ -627,7 +1042,7 @@ function viewProducts(){
   if(!S.products) return `<div class="head"><h2>Products</h2><div class="rule"></div></div>
     <div class="loadwrap">
       <div class="pyramid-loader"><div class="pyramid-wrapper"><span class="side side1"></span><span class="side side2"></span><span class="side side3"></span><span class="side side4"></span><span class="pshadow"></span></div></div>
-      <p class="loadmsg rot">${LOAD_MESSAGES[0]}</p>
+      <div class="loadmsg rot warp-load" data-text="${LOAD_MESSAGES[loadMsgIndex]}"><span class="warp-fallback">${LOAD_MESSAGES[loadMsgIndex]}</span></div>
     </div>
     ${skeleton(4)}`;
   if(!S.products.length) return `<div class="head"><h2>Products</h2><div class="rule"></div></div><div class="empty">No products listed yet.</div>`;
@@ -641,7 +1056,7 @@ function viewProducts(){
         return `<div class="row" data-row="${esc(p.id)}">
           <div class="rowmain">
             <span class="name">${esc(p.name)} <span class="meta">₹${p.price.toFixed(2)}/${esc(p.unit)}</span></span>
-            ${stockBadge(p.stock)}
+            ${stockBadge(p.stock, 'stock:'+S.biz+':'+p.id)}
             <span class="step">
               <button data-dec="${esc(p.id)}" ${q?"":"disabled"}>−</button>
               <input type="number" min="0" max="${p.stock}" inputmode="numeric" class="qtyinput" data-qty="${esc(p.id)}" value="${q}" ${p.stock<=0?"disabled":""}>
@@ -1117,6 +1532,7 @@ document.getElementById("themeToggle").addEventListener("change", (e)=>{
   if(e.target.checked){ document.documentElement.setAttribute("data-theme","dark"); try{ localStorage.setItem("theme","dark"); }catch(err){} }
   else{ document.documentElement.removeAttribute("data-theme"); try{ localStorage.setItem("theme","light"); }catch(err){} }
   applyThemeButton();
+  refreshWarpTexts();            // re-draw warped text in the new theme's text colour
 });
 applyThemeButton();
 
@@ -1131,10 +1547,12 @@ document.getElementById("textSizeToggle").addEventListener("click", ()=>{
   if(isLarge){ document.documentElement.removeAttribute("data-textsize"); try{ localStorage.setItem("textSize","normal"); }catch(e){} }
   else{ document.documentElement.setAttribute("data-textsize","lg"); try{ localStorage.setItem("textSize","lg"); }catch(e){} }
   applyTextSizeButton();
+  refreshWarpTexts();
 });
 applyTextSizeButton();
 
 /* ---------- boot ---------- */
+initNavSpotlight();
 render();
 function hideLoader(){
   const l=document.getElementById("loader"); if(l) l.classList.add("gone");
