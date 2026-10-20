@@ -21,6 +21,8 @@ const {
   STAFF_PASSWORD,
   ALLOWED_ORIGIN,
   ADMIN_PASSWORD,
+  SUPABASE_URL,          // optional: when set with the key below, orders and site text live in Supabase
+  SUPABASE_SERVICE_KEY,  // optional, server side only. Never put this in an app or in GitHub.
   PORT = 4100,
 } = process.env;
 
@@ -90,6 +92,112 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
 }
 function writeJson(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+
+// ---- storage layer -------------------------------------------------
+// With SUPABASE_URL + SUPABASE_SERVICE_KEY set, requests and site text are
+// kept in Supabase (they survive redeploys). Without them, everything
+// works exactly as before using the JSON files above.
+const USE_DB = Boolean(SUPABASE_URL && SUPABASE_SERVICE_KEY);
+const DB = USE_DB ? SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1" : "";
+async function db(pathAndQuery, { method = "GET", body, prefer } = {}) {
+  const res = await fetch(DB + pathAndQuery, {
+    method,
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      "Content-Type": "application/json",
+      ...(prefer ? { Prefer: prefer } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Supabase ${method} ${pathAndQuery.split("?")[0]} failed (${res.status}) ${(await res.text()).slice(0, 200)}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+const fromRow = (r) => ({
+  id: r.id, code: r.code, name: r.name, phone: r.phone, address: r.address, notes: r.notes,
+  items: r.items, status: r.status, createdAt: r.created_at,
+});
+const toRow = (biz, e) => ({
+  id: e.id, business: biz, code: e.code, name: e.name, phone: e.phone, address: e.address,
+  notes: e.notes, items: e.items, status: e.status, created_at: e.createdAt,
+});
+const enc = encodeURIComponent;
+
+async function listRequests(biz) {
+  if (!USE_DB) return readJson(requestsFile(biz), []);
+  const rows = await db(`/shop_requests?business=eq.${enc(biz)}&order=created_at.desc&limit=500`);
+  return rows.map(fromRow);
+}
+async function listRequestsByPhone(biz, last10) {
+  if (!USE_DB) {
+    return readJson(requestsFile(biz), []).filter((r) => (r.phone || "").replace(/\D/g, "").endsWith(last10)).slice(0, 50);
+  }
+  return (await listRequests(biz)).filter((r) => (r.phone || "").replace(/\D/g, "").endsWith(last10)).slice(0, 50);
+}
+async function addRequest(biz, entry) {
+  if (!USE_DB) {
+    const all = readJson(requestsFile(biz), []);
+    all.unshift(entry);
+    writeJson(requestsFile(biz), all.slice(0, 500));
+    return;
+  }
+  await db("/shop_requests", { method: "POST", body: toRow(biz, entry), prefer: "return=minimal" });
+}
+async function getRequest(biz, id) {
+  if (!USE_DB) return readJson(requestsFile(biz), []).find((r) => r.id === id) || null;
+  const rows = await db(`/shop_requests?business=eq.${enc(biz)}&id=eq.${enc(id)}&limit=1`);
+  return rows[0] ? fromRow(rows[0]) : null;
+}
+async function saveRequest(biz, entry) {
+  if (!USE_DB) {
+    const all = readJson(requestsFile(biz), []);
+    const i = all.findIndex((r) => r.id === entry.id);
+    if (i !== -1) all[i] = entry;
+    writeJson(requestsFile(biz), all);
+    return;
+  }
+  await db(`/shop_requests?business=eq.${enc(biz)}&id=eq.${enc(entry.id)}`, { method: "PATCH", body: { status: entry.status, items: entry.items }, prefer: "return=minimal" });
+}
+async function removeRequest(biz, id) {
+  if (!USE_DB) {
+    const all = readJson(requestsFile(biz), []);
+    const next = all.filter((r) => r.id !== id);
+    if (next.length === all.length) return false;
+    writeJson(requestsFile(biz), next);
+    return true;
+  }
+  const rows = await db(`/shop_requests?business=eq.${enc(biz)}&id=eq.${enc(id)}`, { method: "DELETE", prefer: "return=representation" });
+  return Array.isArray(rows) && rows.length > 0;
+}
+async function readContent(biz, fallback) {
+  if (!USE_DB) return readJson(contentFile(biz), fallback);
+  const rows = await db(`/shop_content?business=eq.${enc(biz)}&limit=1`);
+  return rows[0] ? rows[0].data : fallback;
+}
+async function writeContent(biz, data) {
+  if (!USE_DB) return writeJson(contentFile(biz), data);
+  await db("/shop_content?on_conflict=business", { method: "POST", body: { business: biz, data, updated_at: new Date().toISOString() }, prefer: "resolution=merge-duplicates,return=minimal" });
+}
+
+// One-time copy of anything already on the disk into an empty Supabase table,
+// so nothing that exists today is lost when you switch over.
+async function importOldFiles() {
+  if (!USE_DB) return;
+  for (const b of BUSINESS_LIST) {
+    try {
+      const have = await db(`/shop_requests?business=eq.${enc(b.key)}&select=id&limit=1`);
+      const old = readJson(requestsFile(b.key), []);
+      if (!have.length && old.length) {
+        await db("/shop_requests?on_conflict=id", { method: "POST", body: old.map((e) => toRow(b.key, e)), prefer: "resolution=ignore-duplicates,return=minimal" });
+        console.log(`Imported ${old.length} old requests for ${b.key}`);
+      }
+      const hasContent = await db(`/shop_content?business=eq.${enc(b.key)}&select=business&limit=1`);
+      const oldContent = readJson(contentFile(b.key), null);
+      if (!hasContent.length && oldContent) await writeContent(b.key, oldContent);
+    } catch (e) { console.error("Import skipped for", b.key, e.message); }
+  }
+}
 
 // Sensible starting content per business, shown until the owner edits it
 // from Admin. Known businesses get real contact details; anything else
@@ -191,20 +299,24 @@ app.get("/invoices", async (req, res) => {
 });
 
 // ---- editable site content (per business) ----
-app.get("/content", (req, res) => res.json(readJson(contentFile(req.biz.key), defaultContentFor(req.biz))));
-app.post("/content", requireAdmin, (req, res) => {
-  const merged = { ...defaultContentFor(req.biz), ...readJson(contentFile(req.biz.key), {}), ...req.body };
-  writeJson(contentFile(req.biz.key), merged);
-  res.json(merged);
+app.get("/content", async (req, res) => {
+  try { res.json(await readContent(req.biz.key, defaultContentFor(req.biz))); }
+  catch (err) { console.error(err); res.status(502).json({ error: "Could not load content right now" }); }
+});
+app.post("/content", requireAdmin, async (req, res) => {
+  try {
+    const merged = { ...defaultContentFor(req.biz), ...(await readContent(req.biz.key, {})), ...req.body };
+    await writeContent(req.biz.key, merged);
+    res.json(merged);
+  } catch (err) { console.error(err); res.status(502).json({ error: "Could not save content right now" }); }
 });
 
 // ---- product requests (customer submits, admin reviews) — per business ----
-app.post("/requests", requestLimiter, (req, res) => {
+app.post("/requests", requestLimiter, async (req, res) => {
   const { name, phone, address, notes, items } = req.body || {};
   if (!name || !phone || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ error: "name, phone and at least one item are required" });
   }
-  const all = readJson(requestsFile(req.biz.key), []);
   const entry = {
     id: crypto.randomUUID(),
     code: Math.random().toString(36).slice(2, 6).toUpperCase() + String(Date.now()).slice(-2),
@@ -229,26 +341,29 @@ app.post("/requests", requestLimiter, (req, res) => {
   if (!entry.items.length) {
     return res.status(400).json({ error: "at least one item with a quantity is required" });
   }
-  all.unshift(entry);
-  writeJson(requestsFile(req.biz.key), all.slice(0, 500));
-  res.status(201).json({ code: entry.code });
+  try {
+    await addRequest(req.biz.key, entry);
+    res.status(201).json({ code: entry.code });
+  } catch (err) { console.error(err); res.status(502).json({ error: "Could not save your request right now" }); }
 });
 
-app.get("/requests", requireAdmin, (req, res) => res.json(readJson(requestsFile(req.biz.key), [])));
+app.get("/requests", requireAdmin, async (req, res) => {
+  try { res.json(await listRequests(req.biz.key)); }
+  catch (err) { console.error(err); res.status(502).json({ error: "Could not load requests right now" }); }
+});
 
 // Public: a customer looking up their own requests by phone number —
 // same trust model as the /invoices lookup (matches last 10 digits).
 // Only returns what the customer themselves submitted, never admin-only fields.
-app.get("/my-requests", (req, res) => {
+app.get("/my-requests", async (req, res) => {
   const digits = String(req.query.phone || "").replace(/\D/g, "");
   const last10 = digits.slice(-10);
   if (last10.length < 6) return res.json([]);
-  const all = readJson(requestsFile(req.biz.key), []);
-  const mine = all
-    .filter((r) => (r.phone || "").replace(/\D/g, "").endsWith(last10))
-    .map((r) => ({ id: r.id, code: r.code, items: r.items, status: r.status, createdAt: r.createdAt }))
-    .slice(0, 50);
-  res.json(mine);
+  try {
+    const mine = (await listRequestsByPhone(req.biz.key, last10))
+      .map((r) => ({ id: r.id, code: r.code, items: r.items, status: r.status, createdAt: r.createdAt }));
+    res.json(mine);
+  } catch (err) { console.error(err); res.status(502).json({ error: "Could not look that up right now" }); }
 });
 
 const ALLOWED_STATUS = ["new", "seen", "confirmed", "done", "cancelled"];
@@ -258,33 +373,36 @@ const ALLOWED_STATUS = ["new", "seen", "confirmed", "done", "cancelled"];
 //  - { status, itemIndex, part }         → sets ONE part of ONE item:
 //        part "stock" = the quantity taken from stock
 //        part "extra" = the extra quantity beyond stock
-app.patch("/requests/:id", requireAdmin, (req, res) => {
-  const all = readJson(requestsFile(req.biz.key), []);
-  const idx = all.findIndex((r) => r.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Not found" });
+app.patch("/requests/:id", requireAdmin, async (req, res) => {
+  try {
+    const entry = await getRequest(req.biz.key, req.params.id);
+    if (!entry) return res.status(404).json({ error: "Not found" });
 
-  const { status, itemIndex, part } = req.body || {};
-  if (!ALLOWED_STATUS.includes(status)) return res.status(400).json({ error: "Invalid status" });
+    const { status, itemIndex, part } = req.body || {};
+    if (!ALLOWED_STATUS.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
-  if (itemIndex !== undefined) {
-    const item = all[idx].items[Number(itemIndex)];
-    if (!item) return res.status(400).json({ error: "No such item" });
-    if (part === "stock") item.stockStatus = status;
-    else if (part === "extra" && item.extra > 0) item.extraStatus = status;
-    else return res.status(400).json({ error: "Invalid part" });
-  } else {
-    all[idx].status = status;
-  }
-  writeJson(requestsFile(req.biz.key), all);
-  res.json(all[idx]);
+    if (itemIndex !== undefined) {
+      const item = entry.items[Number(itemIndex)];
+      if (!item) return res.status(400).json({ error: "No such item" });
+      if (part === "stock") item.stockStatus = status;
+      else if (part === "extra" && item.extra > 0) item.extraStatus = status;
+      else return res.status(400).json({ error: "Invalid part" });
+    } else {
+      entry.status = status;
+    }
+    await saveRequest(req.biz.key, entry);
+    res.json(entry);
+  } catch (err) { console.error(err); res.status(502).json({ error: "Could not save that change right now" }); }
 });
 
-app.delete("/requests/:id", requireAdmin, (req, res) => {
-  const all = readJson(requestsFile(req.biz.key), []);
-  const next = all.filter((r) => r.id !== req.params.id);
-  if (next.length === all.length) return res.status(404).json({ error: "Not found" });
-  writeJson(requestsFile(req.biz.key), next);
-  res.json({ deleted: true });
+app.delete("/requests/:id", requireAdmin, async (req, res) => {
+  try {
+    if (!(await removeRequest(req.biz.key, req.params.id))) return res.status(404).json({ error: "Not found" });
+    res.json({ deleted: true });
+  } catch (err) { console.error(err); res.status(502).json({ error: "Could not delete right now" }); }
 });
 
-app.listen(PORT, () => console.log(`Storefront proxy listening on :${PORT} — businesses: ${BUSINESS_LIST.map(b=>b.key).join(", ")}`));
+app.listen(PORT, () => {
+  console.log(`Storefront proxy listening on :${PORT} — businesses: ${BUSINESS_LIST.map(b=>b.key).join(", ")} — storage: ${USE_DB ? "Supabase" : "disk"}`);
+  importOldFiles();
+});
