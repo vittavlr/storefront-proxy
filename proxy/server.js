@@ -22,6 +22,8 @@ const {
   ALLOWED_ORIGIN,
   ADMIN_PASSWORD,
   SUPABASE_URL,          // optional: when set with the key below, orders and site text live in Supabase
+  NOTIFY_URL,            // optional: the Universe notify-events function address, for push notifications
+  NOTIFY_SECRET,         // optional: the same WEBHOOK_SECRET that function uses. Server side only.
   SUPABASE_SERVICE_KEY,  // optional, server side only. Never put this in an app or in GitHub.
   PORT = 4100,
 } = process.env;
@@ -92,6 +94,20 @@ function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
 }
 function writeJson(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+
+// ---- push notifications (optional) ----
+// With NOTIFY_URL and NOTIFY_SECRET set, a new order alerts the staff phones and a status change alerts the customer's
+// phone, through the Universe app's notify-events function. Without them nothing changes. A failure here never
+// affects the order itself.
+function notify(event) {
+  if (!NOTIFY_URL || !NOTIFY_SECRET) return;
+  fetch(NOTIFY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-webhook-secret": NOTIFY_SECRET },
+    body: JSON.stringify(event),
+    signal: AbortSignal.timeout(8000),
+  }).catch((e) => console.error("Notify failed:", e.message));
+}
 
 // ---- storage layer -------------------------------------------------
 // With SUPABASE_URL + SUPABASE_SERVICE_KEY set, requests and site text are
@@ -343,6 +359,7 @@ app.post("/requests", requestLimiter, async (req, res) => {
   }
   try {
     await addRequest(req.biz.key, entry);
+    notify({ type: "SHOP_ORDER", business: req.biz.key, code: entry.code });
     res.status(201).json({ code: entry.code });
   } catch (err) { console.error(err); res.status(502).json({ error: "Could not save your request right now" }); }
 });
@@ -379,6 +396,7 @@ app.patch("/requests/:id", requireAdmin, async (req, res) => {
     if (!entry) return res.status(404).json({ error: "Not found" });
 
     const { status, itemIndex, part } = req.body || {};
+    let changed = false;
     if (!ALLOWED_STATUS.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
     if (itemIndex !== undefined) {
@@ -388,9 +406,11 @@ app.patch("/requests/:id", requireAdmin, async (req, res) => {
       else if (part === "extra" && item.extra > 0) item.extraStatus = status;
       else return res.status(400).json({ error: "Invalid part" });
     } else {
+      changed = entry.status !== status;
       entry.status = status;
     }
     await saveRequest(req.biz.key, entry);
+    if (changed && status !== "new") notify({ type: "SHOP_STATUS", business: req.biz.key, phone: entry.phone, status, code: entry.code });
     res.json(entry);
   } catch (err) { console.error(err); res.status(502).json({ error: "Could not save that change right now" }); }
 });
