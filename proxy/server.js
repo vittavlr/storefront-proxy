@@ -260,7 +260,9 @@ function withBusiness(req, res, next) {
 // ---------------------------------------------------------------------
 
 const app = express();
-app.use(cors({ origin: ALLOWED_ORIGIN }));
+// ALLOWED_ORIGIN may list several sites separated by commas, for example the ordering site and the Universe website.
+const ORIGINS = String(ALLOWED_ORIGIN).split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
+app.use(cors({ origin: ORIGINS.length > 1 ? ORIGINS : ORIGINS[0] }));
 app.use(express.json());
 app.use(withBusiness);
 
