@@ -271,7 +271,7 @@ footer{margin-top:26px;padding:16px 0;color:var(--soft);font-size:.8rem;border-t
 .warp-load{position:relative;display:block;width:min(100%,380px);height:56px;margin:0 auto;color:var(--ink);font-size:1.05rem;font-weight:600;letter-spacing:0;overflow:hidden;isolation:isolate}
 .warp-load canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .warp-load .warp-fallback{display:flex;height:100%;align-items:center;justify-content:center;text-align:center}
-.stat-loading .warp-load{margin:0;flex:1 1 auto;height:44px;min-width:0}
+.stat-loading .warp-load{margin:0;flex:0 0 auto;width:min(100%,330px);height:44px;min-width:0}
 
 /* 3D pyramid loader — adapted from a uiverse.io loader, scaled down and
    retoned to the site's palette instead of the original purple/pink/teal */
@@ -535,16 +535,17 @@ void main(){
 const WARP_FRAG = `#version 300 es
 precision highp float;
 uniform sampler2D uTex;
-uniform vec2 uRes;
-uniform vec2 uPointer;
+uniform vec2 uRes;            // canvas size in CSS pixels
+uniform vec2 uPointer;        // 0..1, y up
 uniform float uPointerActive;
 uniform float uTime;
-uniform float uWarp;
+uniform float uWarp;          // ambient wobble, in pixels
+uniform float uWave;          // wobble wavelength, in pixels
 uniform float uScale;
 uniform float uSpeed;
-uniform float uInfluence;
-uniform float uStrength;
-uniform float uRefraction;
+uniform float uInfluence;     // pointer lens radius, in pixels
+uniform float uStrength;      // pointer push, in pixels
+uniform float uRefraction;    // colour split, in pixels
 uniform float uRipple;
 uniform float uMotion;
 in vec2 vUv;
@@ -568,41 +569,37 @@ vec4 tex(vec2 uv){
 }
 void main(){
   vec2 uv = vUv;
-  float aspect = uRes.x / max(uRes.y, 1.0);
+  vec2 pxy = uv * uRes;                          // position in pixels (y up)
   float t = uTime * uSpeed;
-  float sc = max(uScale, 0.001);
 
-  // slow ambient wobble
+  // everything below is measured in PIXELS, so the effect looks the same
+  // whether the canvas is 300px or 1300px wide
   vec2 drift = vec2(t * 0.055, -t * 0.045);
-  float n1 = fbm(uv * sc * 3.1 + drift);
-  float n2 = fbm((uv + 19.17) * sc * 3.4 - drift.yx);
-  vec2 ambient = (vec2(n1, n2) - 0.5) * uWarp * 0.045 * uMotion;
+  float n1 = fbm(pxy / uWave * uScale + drift);
+  float n2 = fbm((pxy / uWave + 19.17) * uScale - drift.yx);
+  vec2 ambient = (vec2(n1, n2) - 0.5) * uWarp * uMotion;
 
   // lens + ripple around the pointer
-  vec2 d = uv - uPointer;
-  vec2 ad = vec2(d.x * aspect, d.y);
-  float dist = length(ad);
-  float radius = max(uInfluence, 0.001);
-  float q = clamp(dist / radius, 0.0, 1.0);
-  float lens = smoothstep(radius, 0.0, dist) * uPointerActive;
+  vec2 dp = pxy - uPointer * uRes;
+  float dist = length(dp);
+  float q = clamp(dist / max(uInfluence, 1.0), 0.0, 1.0);
+  float lens = smoothstep(uInfluence, 0.0, dist) * uPointerActive;
   float bulge = q * (1.0 - q) * (1.0 - q) * 6.75 * uPointerActive;
-  vec2 dir = dist > 0.0001 ? vec2(ad.x / aspect, ad.y) / dist : vec2(0.0);
-  float wave = sin(dist * 28.0 - t * 4.2) * 0.5 + 0.5;
-  float ring = (wave - 0.5) * uRipple;
-  vec2 pw = -dir * bulge * uStrength * 0.045;
-  pw += dir * ring * bulge * uStrength * 0.016;
+  vec2 dir = dist > 0.001 ? dp / dist : vec2(0.0);
+  float ring = sin(dist / 9.0 - t * 4.2) * 0.5 * uRipple;
+  vec2 push = -dir * bulge * uStrength + dir * ring * bulge * uStrength * 0.35;
 
-  vec2 disp = uv + ambient + pw;
-  vec2 sd = ambient + pw;
-  float sl = length(sd);
-  sd = sl > 0.00001 ? sd / sl : vec2(0.7071);
-  vec2 split = sd * uRefraction * 0.16 * (0.35 + lens * 1.65);
+  vec2 shift = ambient + push;                   // total displacement, pixels
+  vec2 disp = uv + shift / uRes;
+  float sl = length(shift);
+  vec2 sd = sl > 0.0001 ? shift / sl : vec2(0.7071);
+  vec2 split = sd * uRefraction * (0.5 + lens) / uRes;
 
   vec4 base = tex(disp);
   vec4 s1 = tex(disp + split);
   vec4 s2 = tex(disp - split);
   float alpha = max(max(s1.a, base.a), s2.a);
-  vec3 col = vec3(s1.r, base.g, s2.b) + lens * base.a * 0.055;
+  vec3 col = vec3(s1.r, base.g, s2.b) + lens * base.a * 0.04;
   outColor = vec4(min(col, vec3(alpha)), alpha);   // premultiplied
 }`;
 
@@ -635,7 +632,7 @@ function warpTextCanvas(container, w, h, dpr, text){
 }
 
 function createWarpText(container, initialText, opts){
-  opts = Object.assign({ warp:0.3, scale:1.7, speed:0.55, influence:0.5, strength:0.5, refraction:0.03, ripple:true }, opts || {});
+  opts = Object.assign({ warp:5, wave:70, scale:1.7, speed:0.55, influence:110, strength:4, refraction:0.45, ripple:true }, opts || {});   // warp/influence/strength/refraction are in pixels
   if(!window.WebGL2RenderingContext) return null;
   const canvas = document.createElement("canvas");
   let gl = null;
@@ -649,7 +646,7 @@ function createWarpText(container, initialText, opts){
   if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){ console.warn("WarpText link:", gl.getProgramInfoLog(prog)); return null; }
   gl.useProgram(prog);
   const U = {};
-  ["uTex","uRes","uPointer","uPointerActive","uTime","uWarp","uScale","uSpeed","uInfluence","uStrength","uRefraction","uRipple","uMotion"]
+  ["uTex","uRes","uPointer","uPointerActive","uTime","uWarp","uWave","uScale","uSpeed","uInfluence","uStrength","uRefraction","uRipple","uMotion"]
     .forEach(n=>{ U[n] = gl.getUniformLocation(prog, n); });
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const tex = gl.createTexture();
@@ -659,7 +656,7 @@ function createWarpText(container, initialText, opts){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1i(U.uTex, 0);
-  gl.uniform1f(U.uWarp, opts.warp); gl.uniform1f(U.uScale, opts.scale); gl.uniform1f(U.uSpeed, opts.speed);
+  gl.uniform1f(U.uWarp, opts.warp); gl.uniform1f(U.uWave, opts.wave); gl.uniform1f(U.uScale, opts.scale); gl.uniform1f(U.uSpeed, opts.speed);
   gl.uniform1f(U.uInfluence, opts.influence); gl.uniform1f(U.uStrength, opts.strength);
   gl.uniform1f(U.uRefraction, opts.refraction); gl.uniform1f(U.uRipple, opts.ripple ? 1 : 0);
   gl.clearColor(0, 0, 0, 0);
@@ -693,7 +690,7 @@ function createWarpText(container, initialText, opts){
     const r = container.getBoundingClientRect(); if(r.width <= 0 || r.height <= 0) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.round(r.width * dpr)); canvas.height = Math.max(1, Math.round(r.height * dpr));
-    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+    gl.uniform2f(U.uRes, r.width, r.height);          // CSS pixels: the shader works in real pixel distances
     rasterize();
   };
   const loop = now=>{
